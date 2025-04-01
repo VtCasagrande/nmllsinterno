@@ -1,0 +1,126 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
+import { TrocaInput, TrocaStatus, TrocaTipo } from '@/types/trocas';
+import { withAuth } from '@/utils/withAuth';
+
+// Array simulado para armazenar trocas (em produção, seria um banco de dados)
+export const trocas = [
+  {
+    id: '1',
+    tipo: TrocaTipo.ENVIADA,
+    status: TrocaStatus.AGUARDANDO_DEVOLUCAO,
+    ean: '7891234567890',
+    nomeProduto: 'Shampoo Pantene',
+    quantidade: 3,
+    lojaParceira: 'Loja Centro',
+    responsavel: 'João Silva',
+    telefoneResponsavel: '(11) 98765-4321',
+    motivo: 'Cliente solicitou específico para evento',
+    dataCriacao: '2023-03-29T10:00:00Z',
+    dataAtualizacao: '2023-03-30T10:00:00Z',
+    observacoes: 'Cliente precisa com urgência',
+    usuarioCriacao: 'user-123',
+  },
+  {
+    id: '2',
+    tipo: TrocaTipo.RECEBIDA,
+    status: TrocaStatus.COLETADO,
+    ean: '7891234567891',
+    nomeProduto: 'Condicionador Dove',
+    quantidade: 1,
+    lojaParceira: 'Shopping Sul',
+    responsavel: 'Ana Oliveira',
+    telefoneResponsavel: '11912345678',
+    motivo: 'Cliente solicitou específico',
+    dataCriacao: '2023-11-12T14:30:00Z',
+    dataAtualizacao: '2023-11-13T09:15:00Z',
+    usuarioCriacao: 'user-456',
+  },
+  {
+    id: '3',
+    tipo: TrocaTipo.ENVIADA,
+    status: TrocaStatus.FINALIZADA,
+    ean: '7891234567892',
+    nomeProduto: 'Calça Jeans',
+    quantidade: 2,
+    lojaParceira: 'Shopping Leste',
+    responsavel: 'Marcos Santos',
+    telefoneResponsavel: '11998765432',
+    motivo: 'Troca por tamanho',
+    dataCriacao: '2023-11-05T09:00:00Z',
+    dataAtualizacao: '2023-11-08T16:30:00Z',
+    usuarioCriacao: 'user-789',
+  },
+  {
+    id: '4',
+    tipo: TrocaTipo.RECEBIDA,
+    status: TrocaStatus.CANCELADA,
+    ean: '7891234567893',
+    nomeProduto: 'Relógio Digital',
+    quantidade: 1,
+    lojaParceira: 'Shopping Oeste',
+    responsavel: 'Patricia Lima',
+    telefoneResponsavel: '11933334444',
+    motivo: 'Item danificado',
+    dataCriacao: '2023-11-15T11:45:00Z',
+    dataAtualizacao: '2023-11-16T10:20:00Z',
+    observacoes: 'Cancelado devido a problemas no transporte',
+    usuarioCriacao: 'user-101',
+  }
+];
+
+// GET /api/trocas - Listar todas as trocas
+export const GET = withAuth(async () => {
+  return NextResponse.json(trocas);
+});
+
+// POST /api/trocas - Criar uma nova troca
+export const POST = withAuth(async (req: NextRequest, { userId }: { userId: string }) => {
+  try {
+    const data: TrocaInput = await req.json();
+    
+    // Validação básica
+    if (!data.ean || !data.nomeProduto || !data.lojaParceira) {
+      return NextResponse.json(
+        { error: 'Campos obrigatórios não informados' },
+        { status: 400 }
+      );
+    }
+    
+    // Definir o status inicial com base no tipo de troca
+    let statusInicial: TrocaStatus;
+    if (data.tipo === TrocaTipo.ENVIADA) {
+      statusInicial = TrocaStatus.AGUARDANDO_DEVOLUCAO;
+    } else {
+      statusInicial = TrocaStatus.COLETADO;
+    }
+    
+    const now = new Date().toISOString();
+    const novaTroca = {
+      id: uuidv4(),
+      ...data,
+      status: statusInicial,
+      dataCriacao: now,
+      dataAtualizacao: now,
+      usuarioCriacao: userId,
+    };
+    
+    trocas.push(novaTroca);
+    
+    return NextResponse.json(novaTroca, { status: 201 });
+  } catch (error) {
+    console.error('Erro ao criar troca:', error);
+    return NextResponse.json(
+      { error: 'Erro ao processar a solicitação' },
+      { status: 500 }
+    );
+  }
+});
+
+// Mostrando os valores dos enums para depuração
+console.log('TrocaTipo.ENVIADA =', TrocaTipo.ENVIADA);
+console.log('TrocaTipo.RECEBIDA =', TrocaTipo.RECEBIDA);
+console.log('TrocaStatus.AGUARDANDO_DEVOLUCAO =', TrocaStatus.AGUARDANDO_DEVOLUCAO);
+console.log('TrocaStatus.COLETADO =', TrocaStatus.COLETADO);
+console.log('TrocaStatus.FINALIZADA =', TrocaStatus.FINALIZADA);
+console.log('TrocaStatus.CANCELADA =', TrocaStatus.CANCELADA); 
