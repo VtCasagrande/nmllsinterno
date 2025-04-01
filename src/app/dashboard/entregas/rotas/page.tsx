@@ -320,10 +320,19 @@ export default function EntregasListaPage() {
   };
   
   // Obter os motoristas únicos das entregas para filtros
-  const motoristas = [...new Set(ENTREGAS_MOCK
-    .filter(e => e.motoristaId)
-    .map(e => ({ id: e.motoristaId, nome: e.motoristaNome })))
-  ] as { id: string; nome: string }[];
+  const motoristaSet = new Set<string>();
+  const motoristas = ENTREGAS_MOCK
+    .filter(e => e.motoristaId && e.motoristaNome)
+    .filter(e => {
+      // Verificar se já adicionamos este motorista
+      const key = `${e.motoristaId}-${e.motoristaNome}`;
+      if (!motoristaSet.has(key)) {
+        motoristaSet.add(key);
+        return true;
+      }
+      return false;
+    })
+    .map(e => ({ id: e.motoristaId!, nome: e.motoristaNome! }));
 
   // Handler para visualização rápida
   const handleQuickView = (entregaId: string) => {

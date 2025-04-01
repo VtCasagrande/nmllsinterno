@@ -61,6 +61,7 @@ export interface Troca {
   dataAtualizacao: string;
   usuarioCriacao: string;
   usuarioAtualizacao?: string;
+  comentarios?: ComentarioTroca[];
 }
 
 // Interface para criar uma nova troca
@@ -85,4 +86,6 @@ export type TrocaFiltros = {
   lojaParceira?: string;
   dataInicio?: string;
   dataFim?: string;
+  nomeProduto?: string;
+  responsavel?: string;
 }; 

@@ -201,7 +201,7 @@ export const ReembolsosProvider: React.FC<ReembolsosProviderProps> = ({ children
         ...reembolsoExistente,
         ...dados,
         dataAtualizacao: new Date().toISOString(),
-        usuarioAtualizacao: profile?.name || profile?.email || 'sistema'
+        usuarioAtualizacao: profile?.name || 'sistema'
       };
       
       setReembolsos(prevReembolsos => 
@@ -368,7 +368,7 @@ export const ReembolsosProvider: React.FC<ReembolsosProviderProps> = ({ children
         ...reembolsoExistente,
         status,
         dataAtualizacao: new Date().toISOString(),
-        usuarioAtualizacao: profile?.name || profile?.email || 'sistema'
+        usuarioAtualizacao: profile?.name || 'sistema'
       };
       
       setReembolsos(prevReembolsos => 

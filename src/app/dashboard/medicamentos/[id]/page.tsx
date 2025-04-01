@@ -104,19 +104,22 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
   };
   
   // Manipuladores de mudança
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    // Manipula campos aninhados
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof LembreteMedicamentoFormValues],
-          [child]: value
-        }
-      }));
+      setFormData(prev => {
+        // Verificar se prev[parent] existe e é um objeto
+        const parentValue = prev[parent as keyof LembreteMedicamentoFormValues] || {};
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: value
+          }
+        };
+      });
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -147,13 +150,17 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
           }
         }));
       } else {
-        setNovoMedicamento(prev => ({
-          ...prev,
-          [parent]: {
-            ...prev[parent as keyof MedicamentoFormValues],
-            [child]: value
-          }
-        }));
+        setNovoMedicamento(prev => {
+          // Verificar se prev[parent] existe e é um objeto
+          const parentValue = prev[parent as keyof MedicamentoFormValues] || {};
+          return {
+            ...prev,
+            [parent]: {
+              ...parentValue,
+              [child]: value
+            }
+          };
+        });
       }
     } else {
       setNovoMedicamento(prev => ({
@@ -365,7 +372,7 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
                 id="cliente.nome"
                 name="cliente.nome"
                 value={formData.cliente.nome}
-                onChange={handleInputChange}
+                onChange={handleChange}
                 className={`w-full p-2 border rounded-md ${errors['cliente.nome'] ? 'border-red-500' : 'border-gray-300'}`}
               />
               {errors['cliente.nome'] && (
@@ -382,7 +389,7 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
                 id="cliente.telefone"
                 name="cliente.telefone"
                 value={formData.cliente.telefone}
-                onChange={handleInputChange}
+                onChange={handleChange}
                 placeholder="(00) 00000-0000"
                 className={`w-full p-2 border rounded-md ${errors['cliente.telefone'] ? 'border-red-500' : 'border-gray-300'}`}
               />
@@ -406,7 +413,7 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
                 id="pet.nome"
                 name="pet.nome"
                 value={formData.pet.nome}
-                onChange={handleInputChange}
+                onChange={handleChange}
                 className={`w-full p-2 border rounded-md ${errors['pet.nome'] ? 'border-red-500' : 'border-gray-300'}`}
               />
               {errors['pet.nome'] && (
@@ -423,7 +430,7 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
                 id="pet.raca"
                 name="pet.raca"
                 value={formData.pet.raca}
-                onChange={handleInputChange}
+                onChange={handleChange}
                 className="w-full p-2 border border-gray-300 rounded-md"
               />
             </div>
@@ -621,7 +628,7 @@ export default function EditarLembreteMedicamento({ params }: { params: { id: st
               id="observacoes"
               name="observacoes"
               value={formData.observacoes}
-              onChange={handleInputChange}
+              onChange={handleChange}
               rows={3}
               className="w-full p-2 border border-gray-300 rounded-md"
             />

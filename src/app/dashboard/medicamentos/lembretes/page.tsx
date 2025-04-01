@@ -213,7 +213,7 @@ export default function LembretesMedicamentosPage() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={lembrete.ativo ? "success" : "secondary"}>
+                      <Badge variant={lembrete.ativo ? "default" : "secondary"} className={lembrete.ativo ? "bg-green-100 text-green-800 hover:bg-green-100" : ""}>
                         {lembrete.ativo ? 'Ativo' : 'Inativo'}
                       </Badge>
                     </TableCell>

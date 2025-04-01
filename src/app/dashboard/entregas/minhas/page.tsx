@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useEntregas } from '@/contexts/EntregasContext';
-import { Entrega, StatusEntrega } from '@/types/entregas';
+import { Entrega, StatusEntrega, FormaPagamento } from '@/types/entregas';
 import { 
   Search, 
   MapPin, 
@@ -43,25 +43,31 @@ const EntregaMap = dynamic(() => import('@/components/EntregaMap'), {
 });
 
 // Mapeamento de status de entrega para exibição
-const ENTREGA_STATUS_MAP = {
-  pendente: { label: 'Pendente', className: 'bg-yellow-100 text-yellow-800' },
-  atribuida: { label: 'Atribuída', className: 'bg-blue-100 text-blue-800' },
-  em_rota: { label: 'Em Rota', className: 'bg-purple-100 text-purple-800' },
-  entregue: { label: 'Entregue', className: 'bg-green-100 text-green-800' },
-  cancelada: { label: 'Cancelada', className: 'bg-red-100 text-red-800' },
+const ENTREGA_STATUS_MAP: Record<StatusEntrega, { label: string, className: string }> = {
+  [StatusEntrega.PENDENTE]: { label: 'Pendente', className: 'bg-yellow-100 text-yellow-800' },
+  [StatusEntrega.ATRIBUIDA]: { label: 'Atribuída', className: 'bg-blue-100 text-blue-800' },
+  [StatusEntrega.EM_ROTA]: { label: 'Em Rota', className: 'bg-purple-100 text-purple-800' },
+  [StatusEntrega.ENTREGUE]: { label: 'Entregue', className: 'bg-green-100 text-green-800' },
+  [StatusEntrega.CANCELADA]: { label: 'Cancelada', className: 'bg-red-100 text-red-800' },
+  [StatusEntrega.COM_PROBLEMA]: { label: 'Com Problema', className: 'bg-orange-100 text-orange-800' },
 };
 
 // Mapeamento de forma de pagamento para exibição
-const PAGAMENTO_MAP = {
-  dinheiro: 'Dinheiro',
-  cartao: 'Cartão',
-  pix: 'PIX',
-  boleto: 'Boleto',
-  sem_pagamento: 'Sem Pagamento',
+const PAGAMENTO_MAP: Record<string, string> = {
+  [FormaPagamento.DINHEIRO]: 'Dinheiro',
+  [FormaPagamento.CREDITO]: 'Cartão de Crédito',
+  [FormaPagamento.DEBITO]: 'Cartão de Débito',
+  [FormaPagamento.PIX]: 'PIX',
+  [FormaPagamento.BOLETO]: 'Boleto',
+  [FormaPagamento.SEM_PAGAMENTO]: 'Sem Pagamento',
 };
 
 // Componente Modal simplificado
-function DetalheEntregaModal({ isOpen, onClose, entrega }: any) {
+function DetalheEntregaModal({ isOpen, onClose, entrega }: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  entrega: Entrega | null;
+}) {
   if (!isOpen || !entrega) return null;
 
   return (

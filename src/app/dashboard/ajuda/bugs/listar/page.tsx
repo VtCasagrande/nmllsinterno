@@ -160,7 +160,7 @@ function BugCard({ bug, onStatusChange }: { bug: Bug, onStatusChange: (id: strin
 
 export default function ListarBugsPage() {
   const [bugs, setBugs] = useState<Bug[]>([]);
-  const [filtro, setFiltro] = useState<'todos' | 'analise' | 'arrumados'>('todos');
+  const [filtro, setFiltro] = useState<'todos' | 'analise' | 'arrumados' | 'criticos'>('todos');
   const [ordenacao, setOrdenacao] = useState<'dataCriacao' | 'severidade'>('dataCriacao');
   const [direcao, setDirecao] = useState<'asc' | 'desc'>('desc');
   const [isLoading, setIsLoading] = useState(true);

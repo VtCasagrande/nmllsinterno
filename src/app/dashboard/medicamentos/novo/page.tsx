@@ -53,16 +53,20 @@ export default function NovoLembreteMedicamento() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    // Manipula campos aninhados
+    // Manipula campos aninhados (cliente, pet)
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof LembreteMedicamentoFormValues],
-          [child]: value
-        }
-      }));
+      setFormData(prev => {
+        // Verificar se prev[parent] existe e é um objeto
+        const parentValue = prev[parent as keyof LembreteMedicamentoFormValues] || {};
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: value
+          }
+        };
+      });
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -93,13 +97,17 @@ export default function NovoLembreteMedicamento() {
           }
         }));
       } else {
-        setNovoMedicamento(prev => ({
-          ...prev,
-          [parent]: {
-            ...prev[parent as keyof MedicamentoFormValues],
-            [child]: value
-          }
-        }));
+        setNovoMedicamento(prev => {
+          // Verificar se prev[parent] existe e é um objeto
+          const parentValue = prev[parent as keyof MedicamentoFormValues] || {};
+          return {
+            ...prev,
+            [parent]: {
+              ...parentValue,
+              [child]: value
+            }
+          };
+        });
       }
     } else {
       setNovoMedicamento(prev => ({

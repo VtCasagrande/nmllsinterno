@@ -1,9 +1,3 @@
-// Este arquivo não pode ser .ts já que contém JSX, vou comentar todo o conteúdo
-
-// O arquivo precisará ser renomeado para .tsx
-// Abaixo está o conteúdo comentado que deverá ser movido para o arquivo .tsx
-
-/*
 // Arquivo de índice para exportar todos os componentes de UI
 // Este arquivo é um stub e pode ser expandido conforme a necessidade
 
@@ -152,5 +146,4 @@ export const Avatar = ({ children }: { children: ReactNode }) => {
 
 export const AvatarGroup = ({ children }: { children: ReactNode }) => {
   return <div className="flex -space-x-2">{children}</div>;
-}; 
-*/ 
+};

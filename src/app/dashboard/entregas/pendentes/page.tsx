@@ -180,12 +180,12 @@ export default function EntregasPendentesPage() {
               </div>
             )}
             
-            {entrega.pagamento && entrega.pagamento.forma === 'dinheiro' && entrega.pagamento.troco > 0 && (
+            {entrega.pagamento && entrega.pagamento.forma === 'dinheiro' && (entrega.pagamento.troco ?? 0) > 0 && (
               <div className="text-sm ml-6">
                 <span className="text-gray-500">Troco para:</span> {new Intl.NumberFormat('pt-BR', {
                   style: 'currency',
                   currency: 'BRL'
-                }).format(entrega.pagamento.troco + entrega.pagamento.valor)}
+                }).format((entrega.pagamento.troco ?? 0) + entrega.pagamento.valor)}
               </div>
             )}
             

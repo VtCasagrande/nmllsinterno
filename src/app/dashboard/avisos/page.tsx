@@ -89,8 +89,8 @@ export default function AvisosPage() {
   const reagir = async (avisoId: string, tipo: TipoReacao) => {
     if (!profile) return;
     
-    const reacaoExistente = aviso => {
-      return aviso.reacoes.some(r => 
+    const reacaoExistente = (aviso: any) => {
+      return aviso.reacoes.some((r: any) => 
         r.usuarioId === profile.id && r.tipo === tipo
       );
     };
@@ -178,14 +178,13 @@ export default function AvisosPage() {
           </p>
         </div>
         
-        {profile && (profile.role === 'admin' || profile.role === 'gerente') && (
-          <button 
-            onClick={() => router.push('/dashboard/avisos/novo')}
-            className="flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
-          >
-            <PlusIcon className="h-4 w-4 mr-2" /> Novo Aviso
-          </button>
-        )}
+        {/* Botão de novo aviso disponível para todos */}
+        <button 
+          onClick={() => router.push('/dashboard/avisos/novo')}
+          className="flex items-center px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700"
+        >
+          <PlusIcon className="h-4 w-4 mr-2" /> Novo Aviso
+        </button>
       </div>
       
       <div className="border-b border-gray-200">
@@ -200,18 +199,17 @@ export default function AvisosPage() {
           >
             Meus Avisos
           </button>
-          {(profile?.role === 'admin' || profile?.role === 'gerente') && (
-            <button
-              onClick={() => setSelectedTab('todos')}
-              className={`px-3 py-2 text-sm font-medium ${
-                selectedTab === 'todos'
-                  ? 'border-b-2 border-blue-500 text-blue-600'
-                  : 'text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Todos os Avisos
-            </button>
-          )}
+          {/* Aba para todos os avisos */}
+          <button
+            onClick={() => setSelectedTab('todos')}
+            className={`px-3 py-2 text-sm font-medium ${
+              selectedTab === 'todos'
+                ? 'border-b-2 border-blue-500 text-blue-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Todos os Avisos
+          </button>
         </nav>
       </div>
       

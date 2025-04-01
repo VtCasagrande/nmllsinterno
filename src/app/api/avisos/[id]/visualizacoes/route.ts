@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { avisos } from '../../route';
+import { avisos } from '@/services/avisosService';
 import { withAuth } from '@/utils/withAuth';
 
 // POST /api/avisos/[id]/visualizacoes - Registrar uma visualização
@@ -20,14 +20,12 @@ export const POST = withAuth(
       
       const aviso = avisos[index];
       
-      // Registrar que o usuário visualizou o aviso se ainda não estiver na lista
-      if (!aviso.visualizacoes.includes(userId)) {
-        aviso.visualizacoes.push(userId);
-      }
+      // Incrementar o contador de visualizações
+      aviso.visualizacoes += 1;
       
       return NextResponse.json({ 
         success: true, 
-        visualizacoes: aviso.visualizacoes.length 
+        visualizacoes: aviso.visualizacoes 
       });
     } catch (error) {
       console.error('Erro ao registrar visualização:', error);

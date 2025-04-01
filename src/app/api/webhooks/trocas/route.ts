@@ -25,7 +25,10 @@ const processarTrocaWebhook = async (
 
   switch (evento) {
     case WebhookEventType.TROCA_CRIADA:
-      novoStatus = TrocaStatus.PENDENTE;
+      // Usar um status válido baseado no tipo da troca (se disponível nos dados)
+      novoStatus = dados.tipo === TrocaTipo.ENVIADA 
+        ? TrocaStatus.AGUARDANDO_DEVOLUCAO 
+        : TrocaStatus.COLETADO;
       break;
     case WebhookEventType.TROCA_ATUALIZADA:
       // Aqui você poderia ter lógicas específicas para diferentes atualizações

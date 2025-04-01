@@ -1,49 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LembreteMedicamentoFormValues } from '@/types/medicamentos';
 import { randomUUID } from 'crypto';
-
-// Importar o "banco de dados" simulado
-// Em um cenário real, isso seria substituído por um acesso ao banco de dados
-let lembretes = [];
-// Acesso ao "banco de dados" em tempo de execução
-try {
-  // @ts-ignore - Acessando variável de módulo
-  lembretes = (await import('../route')).lembretes;
-} catch (error) {
-  console.error('Erro ao acessar lembretes:', error);
-}
-
-// Função para calcular a próxima data de lembrete com base na frequência
-function calcularProximoLembrete(dataInicio: string, frequencia: { valor: number, unidade: string }) {
-  const data = new Date(dataInicio);
-  const agora = new Date();
-  
-  if (data > agora) {
-    return data.toISOString();
-  }
-  
-  // Calcula próxima data com base na frequência
-  let proximaData = new Date(data);
-  
-  while (proximaData <= agora) {
-    if (frequencia.unidade === 'minutos') {
-      proximaData.setMinutes(proximaData.getMinutes() + frequencia.valor);
-    } else if (frequencia.unidade === 'horas') {
-      proximaData.setHours(proximaData.getHours() + frequencia.valor);
-    } else if (frequencia.unidade === 'dias') {
-      proximaData.setDate(proximaData.getDate() + frequencia.valor);
-    }
-  }
-  
-  return proximaData.toISOString();
-}
-
-// Função para verificar se o lembrete está dentro do período válido
-function lembreteAtivo(dataFim: string) {
-  const dataLimite = new Date(dataFim);
-  dataLimite.setHours(23, 59, 59, 999); // Fim do dia
-  return new Date() <= dataLimite;
-}
+import { lembretes, calcularProximoLembrete, lembreteAtivo } from '@/services/medicamentosService';
 
 // GET - Retorna um lembrete específico pelo ID
 export async function GET(
@@ -86,7 +44,7 @@ export async function PUT(
     // Transformar medicamentos (manter IDs existentes ou criar novos)
     const medicamentosComId = formData.medicamentos.map(med => ({
       ...med,
-      id: med.id || randomUUID() // Usar ID existente ou criar um novo
+      id: randomUUID() // Criar um novo ID único para cada medicamento
     }));
     
     // Determinar a próxima data de lembrete (a mais próxima entre todos os medicamentos)

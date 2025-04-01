@@ -127,7 +127,7 @@ export default function DetalhesAtendimentoPage() {
       await atualizarAtendimento(atendimento.id, {
         status,
         observacoes,
-        dataProximoContato: dataProximoContato ? new Date(dataProximoContato) : undefined
+        dataProximoContato: dataProximoContato ? dataProximoContato : undefined
       });
 
       setEditando(false);
@@ -188,7 +188,10 @@ export default function DetalhesAtendimentoPage() {
     setIsSubmitting(true);
 
     try {
-      await atribuirResponsavel(atendimento.id, novoResponsavelId);
+      await atribuirResponsavel(atendimento.id, novoResponsavelId, 
+        // Vamos procurar o nome do responsável a partir do id
+        usuariosDisponiveis.find(u => u.id === novoResponsavelId)?.nome || 'Novo Responsável'
+      );
       setNovoResponsavelId('');
       setAtribuindoResponsavel(false);
       setIsSubmitting(false);
@@ -367,7 +370,7 @@ export default function DetalhesAtendimentoPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">CPF/CNPJ</p>
-              <p className="text-sm font-medium">{atendimento.cliente.documento || '-'}</p>
+              <p className="text-sm font-medium">{atendimento.cliente.cpf || '-'}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500">Telefone</p>
@@ -375,7 +378,7 @@ export default function DetalhesAtendimentoPage() {
             </div>
             <div>
               <p className="text-xs text-gray-500">Email</p>
-              <p className="text-sm font-medium">{atendimento.cliente.email || '-'}</p>
+              <p className="text-sm font-medium">-</p>
             </div>
           </div>
         </div>
@@ -601,17 +604,10 @@ export default function DetalhesAtendimentoPage() {
               atendimento.historico.map((item, index) => (
                 <div key={index} className="border-b border-gray-100 pb-4 mb-4">
                   <div className="flex justify-between items-start mb-2">
-                    <p className="text-sm font-medium text-gray-900">{item.usuario.nome}</p>
-                    <p className="text-xs text-gray-500">{formatarData(item.dataCriacao)}</p>
+                    <p className="text-sm font-medium text-gray-900">{item.responsavel.nome}</p>
+                    <p className="text-xs text-gray-500">{formatarData(item.data)}</p>
                   </div>
-                  <p className="text-sm text-gray-600 whitespace-pre-line">{item.comentario}</p>
-                  {item.tipoAcao && (
-                    <p className="mt-1 text-xs text-blue-600">
-                      {item.tipoAcao === 'status' && `Alterou o status para: ${getStatusInfo(item.novoValor as StatusCRM).texto}`}
-                      {item.tipoAcao === 'responsavel' && `Atribuiu para: ${item.novoValor}`}
-                      {item.tipoAcao === 'contato' && `Agendou próximo contato para: ${formatarData(item.novoValor as string)}`}
-                    </p>
-                  )}
+                  <p className="text-sm text-gray-600 whitespace-pre-line">{item.descricao}</p>
                 </div>
               ))
             ) : (

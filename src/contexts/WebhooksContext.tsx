@@ -8,6 +8,7 @@ interface WebhooksContextType {
   webhooks: Webhook[];
   loading: boolean;
   error: string | null;
+  getWebhookById: (id: string) => Promise<Webhook | null>;
   createWebhook: (webhook: Omit<Webhook, 'id' | 'ultimoDisparo' | 'ultimoStatusCode'>) => Promise<void>;
   updateWebhook: (id: string, webhook: Partial<Webhook>) => Promise<void>;
   deleteWebhook: (id: string) => Promise<void>;
@@ -64,6 +65,17 @@ export const WebhooksProvider: React.FC<WebhooksProviderProps> = ({ children }) 
   const saveWebhooks = (updatedWebhooks: Webhook[]) => {
     localStorage.setItem('webhooks', JSON.stringify(updatedWebhooks));
     setWebhooks(updatedWebhooks);
+  };
+
+  // Obter webhook por ID
+  const getWebhookById = async (id: string): Promise<Webhook | null> => {
+    try {
+      const webhook = webhooks.find(webhook => webhook.id === id);
+      return webhook || null;
+    } catch (err) {
+      console.error('Erro ao buscar webhook:', err);
+      throw new Error('Não foi possível encontrar o webhook.');
+    }
   };
 
   // Criar novo webhook
@@ -137,6 +149,7 @@ export const WebhooksProvider: React.FC<WebhooksProviderProps> = ({ children }) 
         webhooks,
         loading,
         error,
+        getWebhookById,
         createWebhook,
         updateWebhook,
         deleteWebhook,

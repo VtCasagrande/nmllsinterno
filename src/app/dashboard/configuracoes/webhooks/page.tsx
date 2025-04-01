@@ -157,7 +157,7 @@ export default function WebhooksPage() {
                         {webhook.url}
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
-                        Criado em {formatarData(webhook.dataCriacao)}
+                        Criado em {formatarData(new Date(parseInt(webhook.id)).toISOString())}
                       </div>
                     </div>
                   </div>

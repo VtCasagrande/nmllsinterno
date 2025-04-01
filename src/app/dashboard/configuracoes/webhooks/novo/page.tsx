@@ -17,7 +17,7 @@ export default function NovoWebhookPage() {
     url: '',
     evento: WebhookEventType.ENTREGA_EM_ROTA,
     status: WebhookStatus.ATIVO,
-    secretKey: ''
+    chaveSecreta: ''
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -54,11 +54,8 @@ export default function NovoWebhookPage() {
         throw new Error('A URL deve começar com http:// ou https://');
       }
 
-      await createWebhook({
-        ...formData,
-        id: crypto.randomUUID(),
-        dataCriacao: new Date().toISOString(),
-      });
+      // Criar o webhook com os dados do formulário
+      await createWebhook(formData);
 
       router.push('/dashboard/configuracoes/webhooks');
     } catch (err) {
@@ -134,14 +131,14 @@ export default function NovoWebhookPage() {
           </div>
 
           <div>
-            <label htmlFor="secretKey" className="block text-sm font-medium text-gray-700">
+            <label htmlFor="chaveSecreta" className="block text-sm font-medium text-gray-700">
               Chave secreta (opcional)
             </label>
             <input
               type="text"
-              id="secretKey"
-              name="secretKey"
-              value={formData.secretKey}
+              id="chaveSecreta"
+              name="chaveSecreta"
+              value={formData.chaveSecreta}
               onChange={handleChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               placeholder="sua-chave-secreta"

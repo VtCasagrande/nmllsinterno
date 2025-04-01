@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { avisos } from '../route';
+import { avisos } from '@/services/avisosService';
 import { withAuth } from '@/utils/withAuth';
 import { AvisoStatus } from '@/types/avisos';
 

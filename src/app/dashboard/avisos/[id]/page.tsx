@@ -389,7 +389,8 @@ export default function AvisoDetalhesPage({ params }: PageProps) {
               </div>
             </div>
             
-            {(profile?.isAdmin || profile?.isGerente) && aviso.status === AvisoStatus.ATIVO && (
+            {/* Permitir arquivamento apenas para avisos ativos */}
+            {aviso.status === AvisoStatus.ATIVO && (
               <button
                 onClick={handleArquivar}
                 disabled={atualizandoAviso}

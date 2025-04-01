@@ -1,42 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { LembreteMedicamento } from '@/types/medicamentos';
-import { WebhookEventType, WebhookStatus } from '@/types/webhooks';
-import { lembretes } from '../route';
+import { WebhookEventType, WebhookStatus, Webhook } from '@/types/webhooks';
+import { lembretes, calcularProximoLembrete, lembreteAtivo } from '@/services/medicamentosService';
 
 // Webhooks configurados no sistema
-let webhooks = []; // Em um cenário real, buscaria os webhooks do banco de dados
-
-// Função para calcular a próxima data de lembrete com base na frequência
-function calcularProximoLembrete(dataInicio: string, frequencia: { valor: number, unidade: string }) {
-  const data = new Date(dataInicio);
-  const agora = new Date();
-  
-  if (data > agora) {
-    return data.toISOString();
-  }
-  
-  // Calcula próxima data com base na frequência
-  let proximaData = new Date(data);
-  
-  while (proximaData <= agora) {
-    if (frequencia.unidade === 'minutos') {
-      proximaData.setMinutes(proximaData.getMinutes() + frequencia.valor);
-    } else if (frequencia.unidade === 'horas') {
-      proximaData.setHours(proximaData.getHours() + frequencia.valor);
-    } else if (frequencia.unidade === 'dias') {
-      proximaData.setDate(proximaData.getDate() + frequencia.valor);
-    }
-  }
-  
-  return proximaData.toISOString();
-}
-
-// Função para verificar se o lembrete está dentro do período válido
-function lembreteAtivo(dataFim: string) {
-  const dataLimite = new Date(dataFim);
-  // Não ajustar mais para fim do dia, usar a hora exata
-  return new Date() <= dataLimite;
-}
+let webhooks: Webhook[] = []; // Em um cenário real, buscaria os webhooks do banco de dados
 
 // Função para enviar o webhook
 async function enviarWebhook(lembrete: LembreteMedicamento, medicamento: any) {
@@ -165,6 +133,8 @@ async function processarLembretes() {
         const proximoLembreteMed = calcularProximoLembrete(med.dataInicio, med.frequencia);
         
         // Verificar se o próximo lembrete deste medicamento está na hora
+        if (!lembrete.proximoLembrete) return false;
+        
         return Math.abs(new Date(proximoLembreteMed).getTime() - new Date(lembrete.proximoLembrete).getTime()) < 60000; // 1 minuto de tolerância
       });
       

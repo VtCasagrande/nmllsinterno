@@ -112,13 +112,17 @@ export default function NovaEntrega() {
     // Manipula campos aninhados (endereco, horarioMaximo)
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof FormularioRota],
-          [child]: value
-        }
-      }));
+      setFormData(prev => {
+        // Verificar se prev[parent] existe e é um objeto
+        const parentValue = prev[parent as keyof FormularioRota] || {};
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: value
+          }
+        };
+      });
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
@@ -138,13 +142,17 @@ export default function NovaEntrega() {
     
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [parent]: {
-          ...prev[parent as keyof FormularioRota],
-          [child]: checked
-        }
-      }));
+      setFormData(prev => {
+        // Verificar se prev[parent] existe e é um objeto
+        const parentValue = prev[parent as keyof FormularioRota] || {};
+        return {
+          ...prev,
+          [parent]: {
+            ...parentValue,
+            [child]: checked
+          }
+        };
+      });
     } else {
       setFormData(prev => ({ ...prev, [name]: checked }));
     }

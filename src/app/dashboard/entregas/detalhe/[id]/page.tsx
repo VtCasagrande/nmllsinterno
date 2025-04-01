@@ -735,8 +735,10 @@ export default function DetalheEntregaPage() {
       try {
         const dadosPagamento = {
           pagamento: {
-            ...entrega.pagamento,
-            recebido: true
+            ...(entrega.pagamento || {}),
+            recebido: true,
+            forma: entrega.pagamento?.forma || FormaPagamento.DINHEIRO,
+            valor: entrega.pagamento?.valor || valorTotal
           }
         };
         

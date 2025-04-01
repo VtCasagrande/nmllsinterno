@@ -9,12 +9,14 @@ import { ArrowLeft, Check, Clock, Edit, Truck, AlertCircle, Repeat, X } from 'lu
 import toast from 'react-hot-toast';
 
 export default function DetalheTrocaPage({ params }: { params: { id: string } }) {
+  const { id } = params;
+  const { getTrocaById, updateTroca, updateTrocaStatus, addComentario, error: contextError } = useTrocas();
+  const [loading, setLoading] = useState(true);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const router = useRouter();
-  const { getTrocaById, updateTroca, updateTrocaStatus, addComentario, loading, error } = useTrocas();
   const [troca, setTroca] = useState<Troca | null>(null);
   const [atualizando, setAtualizando] = useState<boolean>(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
-  const [dataLoaded, setDataLoaded] = useState<boolean>(false);
   const [comentario, setComentario] = useState('');
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
@@ -23,7 +25,7 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
     if (!dataLoaded) {
       const carregarTroca = async () => {
         try {
-          const dadosTroca = await getTrocaById(params.id);
+          const dadosTroca = await getTrocaById(id);
           if (dadosTroca) {
             setTroca(dadosTroca);
           } else {
@@ -40,7 +42,7 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
 
       carregarTroca();
     }
-  }, [params.id, getTrocaById, router, dataLoaded]);
+  }, [id, getTrocaById, router, dataLoaded]);
 
   const handleFinalizar = async () => {
     if (!troca) return;
@@ -235,10 +237,10 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
         </Link>
       </div>
 
-      {(updateError || error) && (
+      {(updateError || contextError) && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
           <strong className="font-bold">Erro!</strong>
-          <span className="block sm:inline"> {updateError || error}</span>
+          <span className="block sm:inline"> {updateError || contextError}</span>
         </div>
       )}
 

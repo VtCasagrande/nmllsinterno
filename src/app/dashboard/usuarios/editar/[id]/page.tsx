@@ -183,7 +183,17 @@ export default function EditarUsuarioPage({ params }: PageProps) {
       // Simulação de chamada para API
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const dadosParaEnviar = {
+      // Criar um objeto para envio com propriedades opcionais
+      const dadosParaEnviar: {
+        id: string;
+        nome: string;
+        email: string;
+        telefone: string;
+        papel: string;
+        ativo: boolean;
+        senha?: string;
+        confirmarSenha?: string;
+      } = {
         ...formData,
         id
       };

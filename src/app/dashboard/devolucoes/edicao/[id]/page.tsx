@@ -6,9 +6,8 @@ import { Camera, Upload, X, ArrowLeft, Save, User } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 
-// Importamos os dados mockados temporariamente
-// Em um sistema real, faríamos a busca via API
-import { DEVOLUCOES_MOCK } from '../../acompanhamento/page';
+// Importamos os dados mockados do serviço
+import { DEVOLUCOES_MOCK } from '@/services/devolucoesService';
 
 export default function EdicaoDevolucaoPage() {
   const router = useRouter();

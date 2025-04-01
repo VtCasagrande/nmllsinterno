@@ -8,7 +8,8 @@ import {
   StatusSugestao, 
   Comentario, 
   ComentarioInput,
-  FiltroSugestao
+  FiltroSugestao,
+  UrgenciaSugestao
 } from '@/types/sugestoes';
 import { useAuth } from './AuthContext';
 import { useWebhooks } from './WebhooksContext';
@@ -56,7 +57,7 @@ const SUGESTOES_MOCK: Sugestao[] = [
     fornecedor: 'Ypê',
     cliente: 'Maria Silva',
     telefoneCliente: '(11) 98765-4321',
-    urgencia: 'alta',
+    urgencia: UrgenciaSugestao.ALTA,
     status: StatusSugestao.CRIADO,
     observacao: 'Cliente frequente, solicita o produto semanalmente',
     comentarios: [

@@ -6,7 +6,9 @@ interface AuthContextType {
   profile: {
     id: string;
     name: string;
+    role: string;
   } | null;
+  signOut: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -28,10 +30,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const profile = {
     id: 'user-123',
     name: 'Usuário Demo',
+    role: 'Administrador'
+  };
+
+  // Função para logout
+  const signOut = () => {
+    console.log('Usuário fez logout');
+    // Em um sistema real, aqui limparia cookies, tokens, etc.
+    // E redirecionaria para a página de login
   };
 
   return (
-    <AuthContext.Provider value={{ profile }}>
+    <AuthContext.Provider value={{ profile, signOut }}>
       {children}
     </AuthContext.Provider>
   );

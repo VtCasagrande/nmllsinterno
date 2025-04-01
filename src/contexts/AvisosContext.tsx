@@ -24,7 +24,7 @@ interface AvisosContextProps {
   error: string | null;
   filtros: AvisoFiltros;
   setFiltros: (filtros: AvisoFiltros) => void;
-  getAvisos: () => Promise<Aviso[]>;
+  getAvisos: (forceRefresh?: boolean) => Promise<Aviso[]>;
   getAvisoById: (id: string) => Promise<Aviso | null>;
   createAviso: (dados: AvisoInput) => Promise<Aviso>;
   updateAviso: (id: string, dados: AvisoUpdate) => Promise<Aviso>;

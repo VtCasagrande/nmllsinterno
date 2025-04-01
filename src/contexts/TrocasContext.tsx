@@ -7,18 +7,18 @@ import {
   TrocaUpdate, 
   ComentarioTroca, 
   ComentarioTrocaInput,
-  FiltroTroca,
+  TrocaFiltros,
+  TrocaStatus,
+  TrocaTipo,
   TipoTroca,
   StatusTrocaEmprestamos,
   StatusTrocaPegamosEmprestado,
-  TrocaStatus,
-  TrocaTipo,
-  TrocaFiltros
 } from '@/types/trocas';
 import { useAuth } from './AuthContext';
 import { useWebhooks } from './WebhooksContext';
 import { WebhookEventType, TrocaEventPayload } from '@/types/webhooks';
 import { toast } from 'react-hot-toast';
+import { useToast } from '@/components/ui/toast-provider';
 
 // Interface para o contexto
 interface TrocasContextProps {
@@ -33,8 +33,8 @@ interface TrocasContextProps {
   updateTroca: (id: string, dados: TrocaUpdate) => Promise<Troca>;
   deleteTroca: (id: string) => Promise<boolean>;
   addComentario: (trocaId: string, comentario: ComentarioTrocaInput) => Promise<ComentarioTroca>;
-  filtrarTrocas: (filtro: FiltroTroca) => Troca[];
-  exportarTrocas: (filtro: FiltroTroca) => Promise<string>;
+  filtrarTrocas: (filtro: TrocaFiltros) => Troca[];
+  exportarTrocas: (filtro: TrocaFiltros) => Promise<string>;
   finalizarTroca: (id: string) => Promise<Troca>;
   updateTrocaStatus: (id: string, status: TrocaStatus) => Promise<boolean>;
 }
@@ -59,18 +59,19 @@ interface TrocasProviderProps {
 const TROCAS_MOCK: Troca[] = [
   {
     id: '1',
-    tipo: TipoTroca.EMPRESTAMOS,
-    status: StatusTrocaEmprestamos.AGUARDANDO_DEVOLUCAO,
+    tipo: TrocaTipo.ENVIADA,
+    status: TrocaStatus.AGUARDANDO_DEVOLUCAO,
     dataCriacao: new Date(Date.now() - 259200000).toISOString(), // 3 dias atrás
     dataAtualizacao: new Date(Date.now() - 172800000).toISOString(), // 2 dias atrás
     ean: '7891234567890',
-    nomeProduto: 'Shampoo Pantene',
-    lojaParceira: 'Loja Centro',
+    nomeProduto: 'Produto A',
+    lojaParceira: 'Loja Parceira ABC',
     responsavel: 'João Silva',
     telefoneResponsavel: '(11) 98765-4321',
     motivo: 'Cliente solicitou específico para evento',
-    observacao: 'Devolução prevista para 10/04/2023',
-    criadoPor: 'admin',
+    observacoes: 'Devolução prevista para 10/04/2023',
+    usuarioCriacao: 'admin',
+    quantidade: 2,
     comentarios: [
       {
         id: '1',
@@ -83,8 +84,8 @@ const TROCAS_MOCK: Troca[] = [
   },
   {
     id: '2',
-    tipo: TipoTroca.PEGAMOS_EMPRESTADO,
-    status: StatusTrocaPegamosEmprestado.AGUARDANDO_DEVOLUCAO,
+    tipo: TrocaTipo.RECEBIDA,
+    status: TrocaStatus.COLETADO,
     dataCriacao: new Date(Date.now() - 172800000).toISOString(), // 2 dias atrás
     dataAtualizacao: new Date(Date.now() - 86400000).toISOString(), // 1 dia atrás
     ean: '7891234567891',
@@ -93,7 +94,8 @@ const TROCAS_MOCK: Troca[] = [
     responsavel: 'Maria Oliveira',
     telefoneResponsavel: '(11) 98765-1234',
     motivo: 'Estoque em falta',
-    criadoPor: 'admin',
+    usuarioCriacao: 'admin',
+    quantidade: 1,
     comentarios: []
   }
 ];
@@ -291,10 +293,10 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
     
     // Determinar o status final com base no tipo de troca
     let status;
-    if (troca.tipo === TipoTroca.EMPRESTAMOS) {
-      status = StatusTrocaEmprestamos.DEVOLVIDO;
+    if (troca.tipo === TrocaTipo.ENVIADA) {
+      status = TrocaStatus.FINALIZADA;
     } else {
-      status = StatusTrocaPegamosEmprestado.DEVOLVIDO;
+      status = TrocaStatus.FINALIZADA;
     }
     
     return await updateTroca(id, { status });
@@ -351,7 +353,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       
       const updatedTroca = {
         ...troca,
-        comentarios: [...troca.comentarios, newComentario],
+        comentarios: [...(troca.comentarios || []), newComentario],
         dataAtualizacao: now
       };
       
@@ -387,7 +389,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
   };
 
   // Filtrar trocas com base nos critérios fornecidos
-  const filtrarTrocas = (filtro: FiltroTroca): Troca[] => {
+  const filtrarTrocas = (filtro: TrocaFiltros): Troca[] => {
     let trocasFiltradas = [...trocas];
     
     if (filtro.tipo && filtro.tipo.length > 0) {
@@ -431,7 +433,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
   };
 
   // Exportar trocas filtradas para CSV
-  const exportarTrocas = async (filtro: FiltroTroca): Promise<string> => {
+  const exportarTrocas = async (filtro: TrocaFiltros): Promise<string> => {
     const trocasFiltradas = filtrarTrocas(filtro);
     
     // Cabeçalhos do CSV
@@ -459,21 +461,23 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
     };
     
     // Função para obter label do status
-    const getStatusLabel = (tipo: TipoTroca, status: string) => {
-      if (tipo === TipoTroca.EMPRESTAMOS) {
-        return status === StatusTrocaEmprestamos.AGUARDANDO_DEVOLUCAO 
-          ? 'Aguardando Devolução' 
-          : 'Devolvido';
-      } else {
-        return status === StatusTrocaPegamosEmprestado.AGUARDANDO_DEVOLUCAO 
-          ? 'Aguardando Devolução' 
-          : 'Devolvido';
+    const getStatusLabel = (tipo: TrocaTipo, status: string) => {
+      // Retornar o status formatado para exibição
+      if (status === TrocaStatus.AGUARDANDO_DEVOLUCAO) {
+        return 'Aguardando Devolução';
+      } else if (status === TrocaStatus.COLETADO) {
+        return 'Coletado';
+      } else if (status === TrocaStatus.FINALIZADA) {
+        return 'Finalizada';
+      } else if (status === TrocaStatus.CANCELADA) {
+        return 'Cancelada';
       }
+      return status;
     };
     
-    // Função para obter label do tipo
-    const getTipoLabel = (tipo: TipoTroca) => {
-      return tipo === TipoTroca.EMPRESTAMOS ? 'Emprestamos' : 'Pegamos Emprestado';
+    // Função auxiliar para obter label do tipo
+    const getTipoLabel = (tipo: TrocaTipo) => {
+      return tipo === TrocaTipo.ENVIADA ? 'Enviada' : 'Recebida';
     };
     
     // Função para escapar campos CSV
@@ -483,24 +487,22 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
     };
     
     // Converter trocas para linhas CSV
-    const rows = trocasFiltradas.map(t => [
-      t.id,
-      getTipoLabel(t.tipo),
-      getStatusLabel(t.tipo, t.status),
-      formatDate(t.dataCriacao),
-      formatDate(t.dataAtualizacao),
-      formatDate(t.dataFinalizacao),
-      t.ean,
-      t.nomeProduto,
-      t.lojaParceira,
-      t.responsavel,
-      t.telefoneResponsavel,
-      t.motivo,
-      t.observacao || ''
-    ].map(escapeCsv).join(','));
-    
-    // Combinar cabeçalhos e linhas
-    const csv = [headers.join(','), ...rows].join('\n');
+    let csv = headers.join(',') + '\n';
+    trocasFiltradas.forEach(troca => {
+      csv += [
+        troca.id,
+        escapeCsv(getTipoLabel(troca.tipo)),
+        escapeCsv(getStatusLabel(troca.tipo, troca.status)),
+        troca.ean,
+        escapeCsv(troca.nomeProduto),
+        troca.quantidade.toString(),
+        escapeCsv(troca.lojaParceira),
+        escapeCsv(troca.responsavel),
+        escapeCsv(troca.telefoneResponsavel),
+        escapeCsv(troca.motivo),
+        formatDate(troca.dataCriacao)
+      ].join(',') + '\n';
+    });
     
     return csv;
   };
