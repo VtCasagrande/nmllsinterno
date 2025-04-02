@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 
 function LoginContent() {
   const [formData, setFormData] = useState({
@@ -17,26 +19,30 @@ function LoginContent() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [supabaseDetails, setSupabaseDetails] = useState<{
+    url: string | null;
+    key: string | null;
+  }>({
+    url: null,
+    key: null
+  });
   
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { signIn } = useAuth();
   
-  // Verifica se há parâmetros de demo
+  // Verificar ambiente e configurações
   useEffect(() => {
-    const demo = searchParams.get('demo');
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     
-    if (demo === 'true') {
-      setFormData({
-        email: 'demo@nmalls.com',
-        senha: 'demo123',
-        lembrar: false
-      });
-      
-      setLoginMessage({
-        type: 'success',
-        text: 'Usuário de demonstração carregado. Clique em "Entrar" para continuar.'
-      });
-    }
+    setSupabaseDetails({
+      url: url || null,
+      key: key ? key.substring(0, 10) + '...' : null
+    });
+    
+    // Verifica se há parâmetros de redirect
+    const redirect = searchParams.get('redirect');
     
     // Verifica se há mensagem de erro ou sucesso nos parâmetros
     const error = searchParams.get('error');
@@ -100,56 +106,55 @@ function LoginContent() {
     setLoginMessage(null);
     
     try {
-      // Simulação de chamada de API
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const result = await signIn(formData.email, formData.senha);
       
-      // Verificação especial para o e-mail específico
-      let mockUser;
-      
-      if (formData.email === 'casagrandevitor@gmail.com') {
-        // Para este e-mail específico, aceitar qualquer senha
-        mockUser = {
-          id: 'admin-vitor',
-          nome: 'Vitor Casagrande',
-          email: 'casagrandevitor@gmail.com',
-          papel: 'admin',
-          ativo: true
-        };
-      } else {
-        // Para outros usuários, simulamos a verificação normal
-        // Em um sistema real, a validação de senha seria feita no backend
-        
-        // Validação simplificada para demo
-        const isValidDemo = formData.email === 'demo@nmalls.com' && formData.senha === 'demo123';
-        const isValidAdmin = formData.email === 'admin@nmalls.com' && formData.senha === 'admin123';
-        
-        if (!isValidDemo && !isValidAdmin && !formData.email.includes('test')) {
-          throw new Error('Credenciais inválidas');
-        }
-        
-        // Simulando um login bem-sucedido para outros usuários
-        mockUser = {
-          id: 'user-123',
-          nome: 'Usuário Teste',
-          email: formData.email,
-          papel: formData.email.includes('admin') ? 'admin' : 
-                formData.email.includes('gerente') ? 'gerente' : 
-                formData.email.includes('motorista') ? 'motorista' : 'operador',
-          ativo: true
-        };
+      if (!result.success) {
+        setLoginMessage({
+          type: 'error',
+          text: result.error || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
+        });
+        return;
       }
       
-      // Armazenar dados do usuário (em produção, você armazenaria um token JWT)
-      localStorage.setItem('nmalls_user', JSON.stringify(mockUser));
-      
-      // Redirecionar para o dashboard
-      router.push('/dashboard');
+      // Redirecionar para o dashboard ou página solicitada
+      const redirectTo = searchParams.get('redirect') || '/dashboard';
+      router.push(redirectTo);
     } catch (error) {
       console.error('Erro durante o login:', error);
       
+      let errorMessage = 'Erro ao fazer login. Verifique suas credenciais e tente novamente.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       setLoginMessage({
         type: 'error',
-        text: 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
+        text: errorMessage
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  // Função para acessar como demonstração
+  const acessarDemo = async () => {
+    setIsLoading(true);
+    try {
+      const result = await signIn('admin@nmalls.com.br', 'admin123');
+      
+      if (!result.success) {
+        setLoginMessage({
+          type: 'error',
+          text: result.error || 'Erro ao acessar modo demonstração.'
+        });
+        return;
+      }
+      
+      router.push('/dashboard');
+    } catch (error) {
+      setLoginMessage({
+        type: 'error',
+        text: 'Erro ao acessar modo demonstração.'
       });
     } finally {
       setIsLoading(false);
@@ -249,7 +254,9 @@ function LoginContent() {
               </div>
               
               <div className="text-sm">
-                <Link href="/esqueci-senha" className="font-medium text-blue-600 hover:text-blue-500">
+                <Link href="#" 
+                  className="font-medium text-blue-600 hover:text-blue-500"
+                >
                   Esqueceu sua senha?
                 </Link>
               </div>
@@ -260,16 +267,16 @@ function LoginContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
             >
               {isLoading ? (
-                <>
+                <span className="flex items-center">
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Entrando...
-                </>
+                  Processando...
+                </span>
               ) : (
                 'Entrar'
               )}
@@ -277,30 +284,41 @@ function LoginContent() {
           </div>
         </form>
         
-        <div className="mt-4 text-center">
-          <p className="text-sm text-gray-600">
-            Novo em nosso sistema?{' '}
-            <Link href="/registro" className="font-medium text-blue-600 hover:text-blue-500">
-              Solicite seu acesso
-            </Link>
-          </p>
-          
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => {
-                setFormData({
-                  email: 'demo@nmalls.com',
-                  senha: 'demo123',
-                  lembrar: false
-                });
-              }}
-              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              Acessar como demonstração
-            </button>
-          </div>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={acessarDemo}
+            disabled={isLoading}
+            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-100"
+          >
+            Acessar como demonstração
+          </button>
         </div>
+        
+        <div className="mt-6">
+          <p className="text-center text-xs text-gray-500">
+            Novo em nosso sistema? <Link href="#" className="font-medium text-blue-600 hover:text-blue-500">Solicite seu acesso</Link>
+          </p>
+        </div>
+        
+        {supabaseDetails.url === null && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-xs text-red-600 font-medium">Configuração de ambiente incompleta</p>
+            <p className="text-xs text-red-500">
+              As variáveis de ambiente do Supabase (NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY) não estão configuradas corretamente.
+            </p>
+          </div>
+        )}
+        
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
+            <p className="text-xs text-gray-600 font-medium">Ambiente de desenvolvimento</p>
+            <p className="text-xs text-gray-500">
+              URL: {supabaseDetails.url || 'Não configurado'}<br />
+              Key: {supabaseDetails.key || 'Não configurado'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
