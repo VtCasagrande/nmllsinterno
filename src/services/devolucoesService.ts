@@ -75,6 +75,8 @@ export const DEVOLUCOES_MOCK = [
   // outros dados mockados...
 ];
 
+const storageUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co') + '/storage/v1/object/public/devolucoes/';
+
 // Serviço para gerenciar devoluções
 export const devolucoesService = {
   /**
@@ -608,7 +610,6 @@ export const devolucoesService = {
       }
 
       // Extrair o caminho do arquivo a partir da URL
-      const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL + '/storage/v1/object/public/devolucoes/';
       const filePath = fotoUrl.replace(storageUrl, '');
 
       // Excluir o arquivo do storage
