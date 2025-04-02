@@ -106,19 +106,28 @@ function LoginContent() {
     setLoginMessage(null);
     
     try {
+      console.log('Iniciando login para:', formData.email);
       const result = await signIn(formData.email, formData.senha);
+      console.log('Resultado do login:', result);
       
       if (!result.success) {
         setLoginMessage({
           type: 'error',
           text: result.error || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
         });
+        setIsLoading(false);
         return;
       }
       
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';
-      router.push(redirectTo);
+      console.log('Redirecionando para:', redirectTo);
+      
+      // Pequeno atraso antes do redirecionamento para garantir que o estado foi atualizado
+      setTimeout(() => {
+        router.push(redirectTo);
+      }, 500);
+      
     } catch (error) {
       console.error('Erro durante o login:', error);
       
@@ -131,7 +140,6 @@ function LoginContent() {
         type: 'error',
         text: errorMessage
       });
-    } finally {
       setIsLoading(false);
     }
   };

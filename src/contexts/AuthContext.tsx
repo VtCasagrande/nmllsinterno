@@ -80,34 +80,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     // Configurar listener para mudanças de autenticação
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state change:', event, !!session);
+      
       if (event === 'SIGNED_IN' && session) {
-        // Buscar perfil do usuário
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
+        try {
+          // Buscar perfil do usuário
+          const { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+            
+          if (profileError) {
+            console.error('Erro ao buscar perfil:', profileError);
+          }
+            
+          if (profileData) {
+            setProfile({
+              id: session.user.id,
+              email: session.user.email || '',
+              name: profileData.name,
+              role: profileData.role
+            });
+            
+            try {
+              await logAction(
+                'login',
+                `Usuário ${profileData.name} fez login`,
+                'auth',
+                session.user.id,
+                session.user.id
+              );
+            } catch (logError) {
+              console.error('Erro ao registrar log de login:', logError);
+            }
+          } else {
+            // Se não encontrar perfil, usar dados básicos do usuário
+            setProfile({
+              id: session.user.id,
+              email: session.user.email || '',
+              name: session.user.email || 'Usuário',
+              role: 'user'
+            });
+          }
           
-        if (profileData) {
-          setProfile({
-            id: session.user.id,
-            email: session.user.email || '',
-            name: profileData.name,
-            role: profileData.role
-          });
-          
-          await logAction(
-            'login',
-            `Usuário ${profileData.name} fez login`,
-            'auth',
-            session.user.id,
-            session.user.id
-          );
+          setLoading(false);
+        } catch (error) {
+          console.error('Erro ao processar login:', error);
+          setLoading(false);
         }
       }
       
       if (event === 'SIGNED_OUT') {
         setProfile(null);
+        setLoading(false);
         router.push('/login');
       }
     });
@@ -132,6 +158,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           success: false, 
           error: error ? error.message : 'Falha na autenticação' 
         };
+      }
+
+      // Buscar perfil imediatamente após login bem-sucedido
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .single();
+        
+      if (!profileError && profileData) {
+        setProfile({
+          id: data.user.id,
+          email: data.user.email || '',
+          name: profileData.name,
+          role: profileData.role
+        });
       }
 
       return { success: true };
