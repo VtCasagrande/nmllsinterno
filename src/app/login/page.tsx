@@ -61,6 +61,24 @@ function LoginContent() {
     }
   }, [searchParams]);
   
+  // Verificar se já está autenticado ao carregar a página
+  useEffect(() => {
+    const checkAuthStatus = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (!error && data.session) {
+          console.log('Usuário já está autenticado, redirecionando para dashboard...');
+          window.location.href = window.location.origin + '/dashboard';
+        }
+      } catch (err) {
+        console.error('Erro ao verificar sessão existente:', err);
+      }
+    };
+    
+    checkAuthStatus();
+  }, []);
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -107,24 +125,31 @@ function LoginContent() {
     
     try {
       console.log('Iniciando login para:', formData.email);
-      const result = await signIn(formData.email, formData.senha);
-      console.log('Resultado do login:', result);
+      // Login direto com Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: formData.email,
+        password: formData.senha,
+      });
       
-      if (!result.success) {
+      console.log('Resposta do Supabase:', data ? 'Data disponível' : 'Sem data', error ? `Erro: ${error.message}` : 'Sem erro');
+      
+      if (error) {
         setLoginMessage({
           type: 'error',
-          text: result.error || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
+          text: error.message || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
         });
         setIsLoading(false);
         return;
       }
       
+      // Se chegou aqui, login bem-sucedido
+      console.log('Login bem-sucedido, redirecionando...');
+      
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';
       console.log('Redirecionando para:', redirectTo);
       
-      // Forçar redirecionamento usando window.location
-      // Isso evita problemas com o Next.js router em contexto de autenticação
+      // Redirecionar diretamente, sem esperar context.signIn
       window.location.href = redirectTo.startsWith('/') 
         ? window.location.origin + redirectTo
         : redirectTo;
@@ -149,20 +174,30 @@ function LoginContent() {
   const acessarDemo = async () => {
     setIsLoading(true);
     try {
-      const result = await signIn('demo@nmalls.com', 'demo123');
+      console.log('Iniciando login de demonstração...');
+      // Login direto com Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: 'demo@nmalls.com',
+        password: 'demo123',
+      });
       
-      if (!result.success) {
+      console.log('Resposta do Supabase para demo:', data ? 'Data disponível' : 'Sem data', error ? `Erro: ${error.message}` : 'Sem erro');
+      
+      if (error) {
         setLoginMessage({
           type: 'error',
-          text: result.error || 'Erro ao acessar modo demonstração.'
+          text: error.message || 'Erro ao acessar modo demonstração.'
         });
         setIsLoading(false);
         return;
       }
       
+      console.log('Login demo bem-sucedido, redirecionando...');
+      
       // Forçar redirecionamento usando window.location
       window.location.href = window.location.origin + '/dashboard';
     } catch (error) {
+      console.error('Erro durante login demo:', error);
       setLoginMessage({
         type: 'error',
         text: 'Erro ao acessar modo demonstração.'
