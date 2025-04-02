@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -15,7 +15,8 @@ import {
   PhoneCall,
   Pill,
   Clock,
-  Bug
+  Bug,
+  AlertTriangle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -138,6 +139,7 @@ function SidebarSubmenu({ text, isActive, isOpen, onClick, icon, children, toolt
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Submenus para cada categoria
   const [entregasSubmenuOpen, setEntregasSubmenuOpen] = useState(false);
@@ -148,7 +150,30 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [medicamentosSubmenuOpen, setMedicamentosSubmenuOpen] = useState(false);
   
   const pathname = usePathname();
-  const { signOut, profile } = useAuth();
+  
+  // Usar try/catch para evitar erros ao acessar o contexto
+  let signOut = () => {};
+  let profile = null;
+  
+  try {
+    const auth = useAuth();
+    signOut = auth.signOut;
+    profile = auth.profile;
+  } catch (err) {
+    console.error('Erro ao acessar contexto de autenticação:', err);
+    setError('Erro ao carregar dados do usuário');
+  }
+
+  // Registrar handler para erros não capturados
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      console.error('Erro não capturado no layout:', event.error);
+      setError('Ocorreu um erro ao renderizar o layout');
+    };
+
+    window.addEventListener('error', handleError);
+    return () => window.removeEventListener('error', handleError);
+  }, []);
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
@@ -215,6 +240,25 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       icon: Settings
     }
   ];
+
+  // Se houver um erro, mostrar um layout simplificado
+  if (error) {
+    return (
+      <div className="flex h-screen flex-col">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 mx-4 mt-4">
+          <div className="flex items-center">
+            <AlertTriangle className="text-red-500 mr-2" />
+            <p className="text-red-700">{error}</p>
+          </div>
+        </div>
+        <div className="flex flex-1 overflow-hidden">
+          <div className="flex-1 overflow-auto p-6">
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
