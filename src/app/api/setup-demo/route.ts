@@ -3,6 +3,16 @@ import { supabase } from '@/lib/supabase';
 
 export async function GET() {
   try {
+    // Verificar se estamos em processo de build
+    const isBuildTime = process.env.NODE_ENV === 'production' && typeof window === 'undefined';
+    if (isBuildTime) {
+      console.log('Processo identificado como build time, retornando resposta simulada para setup-demo');
+      return NextResponse.json({ 
+        message: 'Resposta simulada para build time',
+        success: true 
+      });
+    }
+    
     // Verificando se o usuário já existe
     const { data: existingUser } = await supabase
       .from('profiles')

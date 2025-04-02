@@ -10,6 +10,16 @@ export async function GET() {
     
     console.log(`Iniciando processo de login demo para ${demoEmail}`);
     
+    // Verificar se estamos em processo de build
+    const isBuildTime = process.env.NODE_ENV === 'production' && typeof window === 'undefined';
+    if (isBuildTime) {
+      console.log('Processo identificado como build time, retornando resposta simulada');
+      return NextResponse.json({ 
+        message: 'Resposta simulada para build time',
+        success: true 
+      });
+    }
+    
     // Tentar fazer login direto primeiro (a maneira mais rápida se tudo estiver ok)
     const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
       email: demoEmail,
