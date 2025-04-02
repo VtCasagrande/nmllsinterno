@@ -38,51 +38,66 @@ export function AppIcon({
   };
   
   const handleFavoriteClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (onToggleFavorite) {
-      onToggleFavorite(e);
+    try {
+      e.preventDefault();
+      e.stopPropagation();
+      if (onToggleFavorite) {
+        onToggleFavorite(e);
+      }
+    } catch (error) {
+      console.error('Erro ao clicar no favorito:', error);
     }
   };
 
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className="flex flex-col items-center gap-1 relative">
-            <Link 
-              href={href} 
-              onClick={onClick}
-              className="relative"
-            >
-              <div 
-                className={cn(
-                  `rounded-2xl flex items-center justify-center ${sizeClasses[size]}`,
-                  color
-                )}
-              >
-                <Icon size={iconSizes[size]} className="text-white" />
-              </div>
-              {isFavorite !== undefined && (
-                <button 
-                  onClick={handleFavoriteClick}
-                  className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center"
-                >
-                  <span className={cn("text-yellow-500", isFavorite ? "opacity-100" : "opacity-40")}>
-                    ★
-                  </span>
-                </button>
-              )}
-            </Link>
-            <span className="text-xs text-center font-medium text-gray-800 max-w-[80px] truncate">
-              {label}
+  // Componente básico sem tooltip em caso de erro
+  const iconComponent = (
+    <div className="flex flex-col items-center gap-1 relative">
+      <Link 
+        href={href} 
+        onClick={onClick}
+        className="relative"
+      >
+        <div 
+          className={cn(
+            `rounded-2xl flex items-center justify-center ${sizeClasses[size]}`,
+            color
+          )}
+        >
+          <Icon size={iconSizes[size]} className="text-white" />
+        </div>
+        {isFavorite !== undefined && (
+          <button 
+            onClick={handleFavoriteClick}
+            className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full shadow flex items-center justify-center"
+          >
+            <span className={cn("text-yellow-500", isFavorite ? "opacity-100" : "opacity-40")}>
+              ★
             </span>
-          </div>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{label}</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+          </button>
+        )}
+      </Link>
+      <span className="text-xs text-center font-medium text-gray-800 max-w-[80px] truncate">
+        {label}
+      </span>
+    </div>
   );
+
+  // Tentar renderizar com tooltip, com fallback para renderização básica
+  try {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            {iconComponent}
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>{label}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  } catch (error) {
+    console.error('Erro ao renderizar tooltip do AppIcon:', error);
+    return iconComponent;
+  }
 } 
