@@ -4,11 +4,11 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTI2OTEyNzksImV4cCI6MjAyODI2NzI3OX0.2FHLJu1LHxuVCCr1FiSq_e6YcfDUH0KaaSNa_L7wnQA';
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error(
-    'Variáveis de ambiente do Supabase não definidas. Certifique-se de que NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY estão definidas no arquivo .env.local'
-  );
-}
+// Criar cliente Supabase
+export const supabase = createClient<Database>(
+  supabaseUrl,
+  supabaseAnonKey
+);
 
 // Tipo para a base de dados
 export type Database = {
@@ -456,12 +456,6 @@ export type Database = {
     };
   };
 };
-
-// Criar cliente Supabase
-export const supabase = createClient<Database>(
-  supabaseUrl,
-  supabaseAnonKey
-);
 
 // Função para registrar um log de ação
 export const logAction = async (

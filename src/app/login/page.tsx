@@ -37,8 +37,8 @@ function LoginContent() {
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MTI2OTEyNzksImV4cCI6MjAyODI2NzI3OX0.2FHLJu1LHxuVCCr1FiSq_e6YcfDUH0KaaSNa_L7wnQA';
     
     setSupabaseDetails({
-      url: url || null,
-      key: key ? key.substring(0, 10) + '...' : null
+      url: url,
+      key: key ? key.substring(0, 10) + '...' : key
     });
     
     // Verifica se há parâmetros de redirect
@@ -140,7 +140,7 @@ function LoginContent() {
   const acessarDemo = async () => {
     setIsLoading(true);
     try {
-      const result = await signIn('admin@nmalls.com.br', 'admin123');
+      const result = await signIn('demo@nmalls.com', 'demo123');
       
       if (!result.success) {
         setLoginMessage({
@@ -301,21 +301,12 @@ function LoginContent() {
           </p>
         </div>
         
-        {supabaseDetails.url === null && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-xs text-red-600 font-medium">Configuração de ambiente incompleta</p>
-            <p className="text-xs text-red-500">
-              As variáveis de ambiente do Supabase (NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_ANON_KEY) não estão configuradas corretamente.
-            </p>
-          </div>
-        )}
-        
         {process.env.NODE_ENV === 'development' && (
           <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
             <p className="text-xs text-gray-600 font-medium">Ambiente de desenvolvimento</p>
             <p className="text-xs text-gray-500">
-              URL: {supabaseDetails.url || 'Não configurado'}<br />
-              Key: {supabaseDetails.key || 'Não configurado'}
+              URL: {supabaseDetails.url}<br />
+              Key: {supabaseDetails.key}
             </p>
           </div>
         )}
