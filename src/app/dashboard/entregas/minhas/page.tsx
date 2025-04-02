@@ -20,6 +20,7 @@ import {
   X,
   Navigation,
   Smartphone,
+  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -251,7 +252,14 @@ function NavegadorModal({ isOpen, onClose, endereco }: { isOpen: boolean, onClos
 }
 
 export default function MinhasEntregasPage() {
-  const { entregas, motoristas, updateEntrega, removerEntregaMotorista, loading } = useEntregas();
+  const { 
+    entregas, 
+    motoristas, 
+    updateEntrega, 
+    removerEntregaMotorista, 
+    loading, 
+    recarregarEntregas 
+  } = useEntregas();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('todas');
   const [minhasEntregas, setMinhasEntregas] = useState<Entrega[]>([]);
@@ -660,13 +668,24 @@ export default function MinhasEntregasPage() {
         </div>
         
         <div className="flex gap-2">
-          <button
+          <Button
+            onClick={recarregarEntregas}
+            variant="outline"
+            disabled={loading}
+            className="flex items-center gap-1"
+            size="sm"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            Atualizar
+          </Button>
+          
+          <Button
             onClick={handleOtimizarRota}
             className="inline-flex items-center px-3 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
             disabled={loading || !motoristaAtual}
           >
             Otimizar Rota
-          </button>
+          </Button>
           
           <Link
             href="/dashboard/entregas/pendentes"

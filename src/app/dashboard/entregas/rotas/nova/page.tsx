@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Plus, Trash, CheckCircle, Clock, LoaderCircle, Search } from 'lucide-react';
 import Link from 'next/link';
+import { rotasService } from '@/services/rotasService';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 
 // Interfaces e tipos
 interface ProdutoRota {
@@ -41,6 +44,7 @@ interface FormularioRota {
   numeroTiny: string;
   data: string;
   motorista: string;
+  motorista_id?: string; // ID do motorista no Supabase
   formaEnvio: string;
   prioridade: string;
   horarioMaximo: HorarioMaximo;
@@ -55,8 +59,17 @@ interface Erros {
   [key: string]: string;
 }
 
+interface Motorista {
+  id: string;
+  nome: string;
+  veiculo: string;
+  placa: string;
+}
+
 export default function NovaEntrega() {
   const router = useRouter();
+  const { profile } = useAuth();
+  const { toast } = useToast();
   
   // Estado para produtos
   const [produtos, setProdutos] = useState<ProdutoRota[]>([]);
@@ -66,12 +79,17 @@ export default function NovaEntrega() {
     quantidade: 1,
     valor: 0
   });
+
+  // Estado para motoristas
+  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
+  const [carregandoMotoristas, setCarregandoMotoristas] = useState(false);
   
   // Estado principal do formulário
   const [formData, setFormData] = useState<FormularioRota>({
     numeroTiny: '',
     data: new Date().toISOString().split('T')[0],
     motorista: '',
+    motorista_id: undefined,
     formaEnvio: 'comum',
     prioridade: 'normal',
     horarioMaximo: {
@@ -104,10 +122,38 @@ export default function NovaEntrega() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  
+
+  // Carregar lista de motoristas ao iniciar
+  useEffect(() => {
+    const carregarMotoristas = async () => {
+      setCarregandoMotoristas(true);
+      try {
+        const listaMotoristas = await rotasService.listarMotoristas();
+        setMotoristas(listaMotoristas);
+      } catch (error) {
+        console.error('Erro ao carregar motoristas:', error);
+      } finally {
+        setCarregandoMotoristas(false);
+      }
+    };
+
+    carregarMotoristas();
+  }, []);
+
   // Manipuladores de mudança
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // Trata o caso especial do motorista para salvar o ID
+    if (name === 'motorista') {
+      const selectedMotorista = motoristas.find(m => m.nome === value);
+      setFormData(prev => ({
+        ...prev,
+        motorista: value,
+        motorista_id: selectedMotorista?.id
+      }));
+      return;
+    }
     
     // Manipula campos aninhados (endereco, horarioMaximo)
     if (name.includes('.')) {
@@ -416,39 +462,94 @@ export default function NovaEntrega() {
     }
   };
   
-  // Manipulador de submissão final
-  const handleSubmit = () => {
+  // Submit do formulário
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validação básica
+    if (!formData.nomeCliente || !formData.endereco || !formData.cidade || !formData.dataEntrega) {
+      setErrors({ ...errors, general: 'Preencha todos os campos obrigatórios' });
+      return;
+    }
+    
+    // Validar se tem produtos
+    if (produtos.length === 0) {
+      setErrors({ ...errors, produtos: 'Adicione pelo menos um produto' });
+      return;
+    }
+    
+    // Iniciar envio
     setIsSubmitting(true);
+    setErrors({ ...errors, general: null });
     
-    // Código para entrega gerado automaticamente
-    const codigo = `RT${Math.floor(Math.random() * 10000).toString().padStart(4, '0')}`;
-    
-    // Preparar os dados para envio
-    // Montando o endereço no formato antigo para compatibilidade com o backend
-    const enderecoCompleto = formData.endereco.logradouro && formData.endereco.numero
-      ? `${formData.endereco.logradouro}, ${formData.endereco.numero}${formData.endereco.bairro ? ` - ${formData.endereco.bairro}` : ''}`
-      : '';
-    
-    const dadosParaEnvio = {
-      codigo,
-      ...formData,
-      produtos,
-      endereco: enderecoCompleto // Armazenando o endereço completo com número
-    };
-    
-    console.log('Dados da entrega:', dadosParaEnvio);
-    
-    // Simulação de chamada ao backend
-    setTimeout(() => {
+    try {
+      // Converter produtos para o formato esperado pela API
+      const itensRota = produtos.map(p => ({
+        descricao: p.nome,
+        quantidade: p.quantidade,
+        valor_unitario: p.valor
+      }));
+      
+      // Filtrar pagamentos com valor > 0
+      const pagamentosRota = [formData.pagamento].filter(p => p.valor > 0).map(p => ({
+        tipo: p.forma.toLowerCase() as 'dinheiro' | 'cartao' | 'pix' | 'outro',
+        valor: p.valor,
+        parcelado: p.forma === 'cartao' && p.parcelamento !== undefined,
+        parcelas: p.parcelamento,
+        recebido: p.receber
+      }));
+      
+      // Dados a serem enviados para a API
+      const dadosRota = {
+        motorista_id: formData.motorista_id,
+        nome_cliente: formData.nomeCliente,
+        telefone_cliente: formData.telefoneCliente,
+        data_entrega: formData.data,
+        horario_maximo: formData.horarioMaximo,
+        endereco: formData.endereco,
+        complemento: formData.endereco.complemento,
+        cidade: formData.endereco.cidade,
+        estado: 'SP',
+        cep: formData.endereco.cep,
+        numero_pedido: formData.numeroTiny,
+        observacoes: formData.observacoes,
+        itens: itensRota,
+        pagamentos: pagamentosRota
+      };
+      
+      // Enviar para a API usando userID do contexto de autenticação
+      if (profile?.id) {
+        const rota = await rotasService.criarNovaRota(dadosRota, profile.id);
+        
+        // Exibir mensagem de sucesso
+        toast({
+          title: "Entrega criada com sucesso",
+          description: `A entrega ${rota.codigo} foi registrada.`,
+        });
+        
+        // Redirecionar para a lista de entregas após sucesso
+        router.push('/dashboard/entregas/rotas');
+      } else {
+        setErrors({ ...errors, general: 'Usuário não autenticado. Faça login novamente.' });
+        
+        toast({
+          title: "Erro de autenticação",
+          description: "Usuário não autenticado. Faça login novamente.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao criar entrega:', error);
+      setErrors({ ...errors, general: 'Ocorreu um erro ao criar a entrega. Tente novamente.' });
+      
+      toast({
+        title: "Erro ao criar entrega",
+        description: error instanceof Error ? error.message : "Ocorreu um erro desconhecido. Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
       setIsSubmitting(false);
-      setShowConfirmation(false);
-      
-      // Exibe mensagem de sucesso
-      alert(`Entrega ${codigo} criada com sucesso!`);
-      
-      // Redireciona para lista de rotas
-      router.push('/dashboard/entregas/rotas');
-    }, 1500);
+    }
   };
 
   // Função para cancelar a confirmação
@@ -529,13 +630,20 @@ export default function NovaEntrega() {
                 value={formData.motorista}
                 onChange={handleInputChange}
                 className={`w-full px-3 py-2 border rounded-md ${errors.motorista ? 'border-red-500' : 'border-gray-300'} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                disabled={carregandoMotoristas}
               >
                 <option value="">Selecione um motorista</option>
-                <option value="João Silva">João Silva</option>
-                <option value="Maria Souza">Maria Souza</option>
-                <option value="Pedro Santos">Pedro Santos</option>
-                <option value="Ana Oliveira">Ana Oliveira</option>
-                <option value="Carlos Ferreira">Carlos Ferreira</option>
+                {carregandoMotoristas ? (
+                  <option value="" disabled>Carregando motoristas...</option>
+                ) : motoristas.length === 0 ? (
+                  <option value="" disabled>Nenhum motorista disponível</option>
+                ) : (
+                  motoristas.map(motorista => (
+                    <option key={motorista.id} value={motorista.nome}>
+                      {motorista.nome} ({motorista.veiculo} - {motorista.placa})
+                    </option>
+                  ))
+                )}
               </select>
               {errors.motorista && (
                 <p className="mt-1 text-sm text-red-600">{errors.motorista}</p>

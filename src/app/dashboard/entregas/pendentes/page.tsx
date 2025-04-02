@@ -13,9 +13,11 @@ import {
   ShoppingBag, 
   Truck,
   ArrowLeft,
-  AlertTriangle
+  AlertTriangle,
+  RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 
 // Componente de confirmação
 function ConfirmationModal({
@@ -59,7 +61,7 @@ function ConfirmationModal({
 }
 
 export default function EntregasPendentesPage() {
-  const { entregas, motoristas, atribuirEntregaMotorista, loading } = useEntregas();
+  const { entregas, motoristas, atribuirEntregaMotorista, loading, recarregarEntregas } = useEntregas();
   const [searchTerm, setSearchTerm] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
@@ -234,6 +236,16 @@ export default function EntregasPendentesPage() {
           </div>
           <p className="text-gray-500 mt-1 text-sm md:text-base">Selecione entregas disponíveis para sua rota</p>
         </div>
+        
+        <Button
+          onClick={recarregarEntregas}
+          variant="outline"
+          disabled={loading}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          Atualizar
+        </Button>
       </div>
 
       {/* Barra de pesquisa */}

@@ -1,15 +1,21 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, Search, Eye, Edit, Trash, CheckCircle, Clock, AlertTriangle, User, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Plus, Search, Eye, Edit, Trash, CheckCircle, Clock, AlertTriangle, User, X, Upload, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { DEVOLUCOES_MOCK } from '@/services/devolucoesService';
+import { Devolucao, devolucoesService, DevolucaoFiltro } from '@/services/devolucoesService';
+import { useToast } from '@/components/ui/use-toast';
+import { useAuth } from '@/auth';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import { Spinner } from '@/components/ui/spinner';
 
 // Mapeamento de status para exibição
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-  em_aberto: { 
-    label: 'Em Aberto', 
+  pendente: { 
+    label: 'Pendente', 
     className: 'bg-yellow-100 text-yellow-800', 
     icon: <Clock size={14} className="mr-1" />
   },
@@ -41,25 +47,29 @@ const MOTIVO_MAP: Record<string, string> = {
 
 // Modal para visualizar detalhes da devolução
 interface ModalDetalhesProps {
-  devolucao: (typeof DEVOLUCOES_MOCK)[0] | null;
+  devolucao: Devolucao | null;
   onClose: () => void;
-  onUpdateStatus: (id: number, novoStatus: string, dados: any) => void;
+  onUpdateStatus: (id: string, novoStatus: string, dados: any) => void;
+  onRefresh: () => void;
 }
 
-function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProps) {
+function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalDetalhesProps) {
   if (!devolucao) return null;
   
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
   const [statusAtual, setStatusAtual] = useState(devolucao.status);
   const [responsavelAnalise, setResponsavelAnalise] = useState(devolucao.responsavel_analise || '');
   const [pedidoTiny, setPedidoTiny] = useState(devolucao.pedido_tiny || '');
   const [notaFiscal, setNotaFiscal] = useState(devolucao.nota_fiscal || '');
   const [produto, setProduto] = useState(devolucao.produto || '');
   const [motivo, setMotivo] = useState(devolucao.motivo || '');
-  const [descricao, setDescricao] = useState(devolucao.descricao || '');
-  const [produtos, setProdutos] = useState<{id: number, codigo: string, nome: string, quantidade: number}[]>(
-    devolucao.produtos || []
-  );
+  const [descricao, setDescricao] = useState(devolucao.observacoes || '');
+  const [produtos, setProdutos] = useState(devolucao.produtos || []);
   const [novoProduto, setNovoProduto] = useState({
+    id: `temp_${Date.now()}`,
     codigo: '',
     nome: '',
     quantidade: 1
@@ -74,6 +84,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [mostrarConfirmacao, setMostrarConfirmacao] = useState(false);
   const [acaoConfirmacao, setAcaoConfirmacao] = useState<'finalizar' | 'cancelar' | null>(null);
+  const [fotos, setFotos] = useState<string[]>(devolucao.fotos || []);
 
   const handleNovoProdutoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -95,7 +106,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
     setProdutos(prev => [
       ...prev,
       { 
-        id: prev.length > 0 ? Math.max(...prev.map(p => p.id)) + 1 : 1,
+        id: novoProduto.id,
         codigo: novoProduto.codigo,
         nome: novoProduto.nome,
         quantidade: novoProduto.quantidade
@@ -104,6 +115,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
 
     // Limpar o formulário
     setNovoProduto({
+      id: `temp_${Date.now()}`,
       codigo: '',
       nome: '',
       quantidade: 1
@@ -119,7 +131,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
     }
   };
 
-  const removerProduto = (id: number) => {
+  const removerProduto = (id: string) => {
     setProdutos(prev => prev.filter(produto => produto.id !== id));
   };
   
@@ -131,10 +143,6 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
   
   const validarFormularioAnalise = () => {
     const newErrors: Record<string, string> = {};
-    
-    if (!responsavelAnalise) {
-      newErrors.responsavelAnalise = 'O responsável pela análise é obrigatório';
-    }
     
     if (!motivo) {
       newErrors.motivo = 'O motivo da devolução é obrigatório';
@@ -167,36 +175,88 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleSubmitAnalise = () => {
-    if (!validarFormularioAnalise()) return;
+  const handleSubmitAnalise = async () => {
+    if (!validarFormularioAnalise() || !user) return;
     
-    const dadosAtualizados = {
-      responsavel_analise: responsavelAnalise,
-      produto: produtos.length > 0 ? produtos[0].nome : '',
-      motivo: motivo,
-      descricao: descricao,
-      produtos: produtos
-    };
+    setLoading(true);
     
-    onUpdateStatus(devolucao.id, 'em_analise', dadosAtualizados);
-    onClose();
+    try {
+      // Atualizar status para em_analise
+      await devolucoesService.atualizarStatus(devolucao.id, 'em_analise', user.id);
+      
+      // Atualizar produtos
+      await devolucoesService.updateItens(devolucao.id, produtos, user.id);
+      
+      // Adicionar comentário
+      if (descricao !== devolucao.observacoes) {
+        await devolucoesService.addComentario(
+          devolucao.id, 
+          `Atualização da descrição: ${descricao}`, 
+          user.id
+        );
+      }
+      
+      toast({
+        title: "Sucesso",
+        description: "Devolução atualizada com sucesso",
+        variant: "success"
+      });
+      
+      onRefresh();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao atualizar devolução:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao atualizar a devolução",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const handleSubmitFinalizado = () => {
-    if (!validarFormularioFinalizado()) return;
+  const handleSubmitFinalizado = async () => {
+    if (!validarFormularioFinalizado() || !user) return;
     
-    const dadosAtualizados = {
-      pedido_tiny: pedidoTiny,
-      nota_fiscal: notaFiscal,
-      data_finalizacao: `${dataFinalizacao}T${new Date().toISOString().split('T')[1].split('.')[0]}`
-    };
+    setLoading(true);
     
-    onUpdateStatus(devolucao.id, 'finalizado', dadosAtualizados);
-    onClose();
+    try {
+      // Atualizar informações do pedido
+      await devolucoesService.updateDevolucao(
+        devolucao.id, 
+        {
+          pedido_tiny: pedidoTiny,
+          nota_fiscal: notaFiscal,
+        },
+        user.id
+      );
+      
+      // Finalizar devolução
+      await devolucoesService.atualizarStatus(devolucao.id, 'finalizado', user.id);
+      
+      toast({
+        title: "Sucesso",
+        description: "Devolução finalizada com sucesso",
+        variant: "success"
+      });
+      
+      onRefresh();
+      onClose();
+    } catch (error) {
+      console.error('Erro ao finalizar devolução:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao finalizar a devolução",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const adicionarComentario = () => {
-    if (!novoComentario.trim()) {
+  const adicionarComentario = async () => {
+    if (!novoComentario.trim() || !user) {
       setErrors(prev => ({
         ...prev,
         comentario: 'O comentário não pode estar vazio'
@@ -204,19 +264,30 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
       return;
     }
 
-    const comentario = {
-      id: devolucao.comentarios ? Math.max(...devolucao.comentarios.map(c => c.id), 0) + 1 : 1,
-      texto: novoComentario,
-      autor: 'Usuário Atual', // Em um sistema real, usaríamos o usuário logado
-      data: new Date().toISOString()
-    };
-
-    onUpdateStatus(devolucao.id, devolucao.status, {
-      comentarios: [...(devolucao.comentarios || []), comentario]
-    });
-
-    setNovoComentario('');
-    setMostrarFormComentario(false);
+    setLoading(true);
+    
+    try {
+      await devolucoesService.addComentario(devolucao.id, novoComentario, user.id);
+      
+      toast({
+        title: "Sucesso",
+        description: "Comentário adicionado com sucesso",
+        variant: "success"
+      });
+      
+      setNovoComentario('');
+      setMostrarFormComentario(false);
+      onRefresh();
+    } catch (error) {
+      console.error('Erro ao adicionar comentário:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao adicionar o comentário",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
     
     // Limpar erro
     if (errors.comentario) {
@@ -233,19 +304,99 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
     setMostrarConfirmacao(true);
   };
 
-  const executarAcaoConfirmada = () => {
-    if (acaoConfirmacao === 'finalizar') {
-      handleSubmitFinalizado();
-    } else if (acaoConfirmacao === 'cancelar') {
-      onUpdateStatus(devolucao.id, 'cancelado', {});
-      onClose();
+  const executarAcaoConfirmada = async () => {
+    if (!user) return;
+    
+    setLoading(true);
+    
+    try {
+      if (acaoConfirmacao === 'finalizar') {
+        await handleSubmitFinalizado();
+      } else if (acaoConfirmacao === 'cancelar') {
+        await devolucoesService.atualizarStatus(devolucao.id, 'cancelado', user.id);
+        toast({
+          title: "Sucesso",
+          description: "Devolução cancelada com sucesso",
+          variant: "success"
+        });
+        onRefresh();
+        onClose();
+      }
+    } catch (error) {
+      console.error('Erro ao executar ação:', error);
+      toast({
+        title: "Erro",
+        description: `Ocorreu um erro ao ${acaoConfirmacao === 'finalizar' ? 'finalizar' : 'cancelar'} a devolução`,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+      setMostrarConfirmacao(false);
+      setAcaoConfirmacao(null);
     }
-    setMostrarConfirmacao(false);
-    setAcaoConfirmacao(null);
+  };
+  
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !e.target.files[0] || !user) return;
+    
+    const file = e.target.files[0];
+    setUploadLoading(true);
+    
+    try {
+      const imageUrl = await devolucoesService.addFoto(devolucao.id, file, user.id);
+      
+      if (imageUrl) {
+        setFotos(prev => [...prev, imageUrl]);
+        toast({
+          title: "Sucesso",
+          description: "Imagem enviada com sucesso",
+          variant: "success"
+        });
+      } else {
+        throw new Error('Erro ao enviar imagem');
+      }
+    } catch (error) {
+      console.error('Erro ao fazer upload da imagem:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao enviar a imagem",
+        variant: "destructive"
+      });
+    } finally {
+      setUploadLoading(false);
+      // Limpar o input
+      e.target.value = '';
+    }
+  };
+  
+  const handleDeleteImage = async (url: string) => {
+    if (!user) return;
+    
+    try {
+      const success = await devolucoesService.deleteFoto(url);
+      
+      if (success) {
+        setFotos(prev => prev.filter(foto => foto !== url));
+        toast({
+          title: "Sucesso",
+          description: "Imagem excluída com sucesso",
+          variant: "success"
+        });
+      } else {
+        throw new Error('Erro ao excluir imagem');
+      }
+    } catch (error) {
+      console.error('Erro ao excluir imagem:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao excluir a imagem",
+        variant: "destructive"
+      });
+    }
   };
   
   const renderizarFormularioStatus = () => {
-    if (statusAtual === 'em_analise' && devolucao.status !== 'em_analise' && devolucao.status !== 'finalizado') {
+    if (statusAtual === 'em_analise' && devolucao.status === 'pendente') {
       return (
         <div className="mt-4 p-4 border rounded-md bg-gray-50">
           <h3 className="font-medium mb-3">Mover para Em Análise</h3>
@@ -563,9 +714,10 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
                   onChange={handleStatusChange}
                   className="mt-1 block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
-                  <option value="em_aberto">Em Aberto</option>
+                  <option value="pendente">Pendente</option>
                   <option value="em_analise">Em Análise</option>
                   <option value="finalizado">Finalizado</option>
+                  <option value="cancelado">Cancelado</option>
                 </select>
               ) : (
                 <div className="flex items-center mt-1">
@@ -810,226 +962,199 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus }: ModalDetalhesProp
 }
 
 export default function AcompanhamentoDevolucaoPage() {
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
-  const [detalheDevolucao, setDetalheDevolucao] = useState<(typeof DEVOLUCOES_MOCK)[0] | null>(null);
-  const [devolucoes, setDevolucoes] = useState<typeof DEVOLUCOES_MOCK>(DEVOLUCOES_MOCK);
+  const [detalheDevolucao, setDetalheDevolucao] = useState<Devolucao | null>(null);
+  const [devolucoes, setDevolucoes] = useState<Devolucao[]>([]);
 
-  // Filtragem das devoluções
-  const devolucoesFiltradas = devolucoes.filter(devolucao => {
-    const produtosStr = devolucao.produtos.map(p => `${p.codigo} ${p.nome}`).join(' ');
-    
-    const matchesSearch = 
-      devolucao.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      produtosStr.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      devolucao.responsavel.toLowerCase().includes(searchTerm.toLowerCase());
+  // Carrega as devoluções do backend
+  const carregarDevolucoes = async () => {
+    try {
+      setLoading(true);
       
-    const matchesStatus = statusFilter === 'todos' || devolucao.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  // Função para atualizar o status de uma devolução
-  const handleUpdateStatus = (id: number, novoStatus: string, dados: any) => {
-    // Atualizar o estado local primeiro
-    setDevolucoes(prevDevolucoes => 
-      prevDevolucoes.map(devolucao => 
-        devolucao.id === id 
-          ? { ...devolucao, status: novoStatus, ...dados } 
-          : devolucao
-      )
-    );
-    
-    // Também atualizar o array DEVOLUCOES_MOCK para persistir as alterações
-    const index = DEVOLUCOES_MOCK.findIndex(d => d.id === id);
-    if (index !== -1) {
-      DEVOLUCOES_MOCK[index] = {
-        ...DEVOLUCOES_MOCK[index],
-        status: novoStatus,
-        ...dados
-      };
+      const filtro: DevolucaoFiltro = {};
+      if (statusFilter !== 'todos') {
+        filtro.status = statusFilter as any;
+      }
+      
+      const devolucoesData = await devolucoesService.getDevolucoes(filtro);
+      setDevolucoes(devolucoesData);
+    } catch (error) {
+      console.error('Erro ao carregar devoluções:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao carregar as devoluções",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Abrir modal de detalhes
-  const abrirDetalhes = (devolucao: (typeof devolucoes)[0]) => {
-    setDetalheDevolucao(devolucao);
-  };
+  // Filtragem das devoluções
+  const devolucoesFiltradas = devolucoes.filter(devolucao => {
+    // Filtrar por termo de busca (produto, código ou descrição)
+    const searchLower = searchTerm.toLowerCase();
+    const produtoMatch = devolucao.produto.toLowerCase().includes(searchLower);
+    const codigoMatch = devolucao.codigo.toLowerCase().includes(searchLower);
+    const descricaoMatch = devolucao.observacoes?.toLowerCase().includes(searchLower) || false;
+    
+    // Filtro de status já aplicado na busca do backend, mas verificamos novamente caso o estado tenha mudado
+    const statusMatch = statusFilter === 'todos' || devolucao.status === statusFilter;
+    
+    return (produtoMatch || codigoMatch || descricaoMatch) && statusMatch;
+  });
 
-  // Fechar modal de detalhes
-  const fecharDetalhes = () => {
-    setDetalheDevolucao(null);
-  };
+  // Carregar devoluções quando o componente montar ou o filtro de status mudar
+  useEffect(() => {
+    if (user) {
+      carregarDevolucoes();
+    }
+  }, [user, statusFilter]);
+
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center h-screen">
+        <p>Você precisa estar logado para acessar esta página.</p>
+      </div>
+    );
+  }
 
   return (
-    <>
-      <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Acompanhamento de Devoluções</h1>
-            <p className="text-gray-500 mt-1">Gerencie e acompanhe o processo de devolução de produtos</p>
+    <div className="flex flex-col min-h-screen">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Acompanhamento de Devoluções</h1>
+        <Link 
+          href="/dashboard/devolucoes/nova" 
+          className="bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 flex items-center"
+        >
+          <Plus size={20} className="mr-1" /> Nova Devolução
+        </Link>
+      </div>
+
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <div className="p-4 flex gap-4 flex-wrap items-center border-b">
+          <div className="flex items-center relative w-64">
+            <Search size={20} className="absolute left-3 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Buscar por produto..."
+              className="pl-10 pr-4 py-2 border rounded-md w-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          
-          <Link 
-            href="/dashboard/devolucoes/registro"
-            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            <Plus size={16} className="mr-2" />
-            Nova Devolução
-          </Link>
+          <div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="py-2 px-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="todos">Todos os status</option>
+              <option value="pendente">Pendente</option>
+              <option value="em_analise">Em Análise</option>
+              <option value="finalizado">Finalizado</option>
+              <option value="cancelado">Cancelado</option>
+            </select>
+          </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="p-4 border-b">
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="sm:flex-1">
-                <div className="relative rounded-md">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <Search size={18} className="text-gray-400" />
-                  </div>
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Buscar por código, produto ou responsável..."
-                  />
-                </div>
-              </div>
-              
-              <div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="todos">Todos os status</option>
-                  <option value="em_aberto">Em Aberto</option>
-                  <option value="em_analise">Em Análise</option>
-                  <option value="finalizado">Finalizado</option>
-                  <option value="cancelado">Cancelado</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Código
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Data
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Produto
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Motivo
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Ações
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Código
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Produto
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Motivo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Responsável
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Fotos
-                  </th>
-                  <th scope="col" className="relative px-6 py-3">
-                    <span className="sr-only">Ações</span>
-                  </th>
+                  <td colSpan={6} className="px-6 py-4 text-center">
+                    <div className="flex justify-center items-center">
+                      <Spinner size="md" /> <span className="ml-2">Carregando devoluções...</span>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              
-              <tbody className="bg-white divide-y divide-gray-200">
-                {devolucoesFiltradas.length > 0 ? (
-                  devolucoesFiltradas.map((devolucao) => (
-                    <tr key={devolucao.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {devolucao.codigo}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
-                        {devolucao.status === 'em_aberto' ? '-' : 
-                          devolucao.produtos.length > 0 
-                            ? devolucao.produtos.map(p => p.nome).join(', ')
-                            : '-'
-                        }
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {devolucao.status === 'em_aberto' ? '-' : (MOTIVO_MAP[devolucao.motivo] || '-')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <span className={`px-2 py-1 inline-flex items-center text-xs leading-5 font-medium rounded-full ${STATUS_MAP[devolucao.status].className}`}>
-                          {STATUS_MAP[devolucao.status].icon}
-                          {STATUS_MAP[devolucao.status].label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(devolucao.data).toLocaleDateString('pt-BR')}
-                        <span className="block text-xs text-gray-400">
-                          {new Date(devolucao.data).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {devolucao.responsavel}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {devolucao.fotos.length} foto(s)
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
-                        <div className="flex justify-end gap-2">
-                          <button
-                            className="p-1 text-blue-600 hover:text-blue-800"
-                            title="Ver detalhes"
-                            onClick={() => abrirDetalhes(devolucao)}
-                          >
-                            <Eye size={18} />
-                          </button>
-                          {devolucao.status !== 'finalizado' && devolucao.status !== 'cancelado' && (
-                            <>
-                              <Link
-                                href={`/dashboard/devolucoes/edicao/${devolucao.id}`}
-                                className="p-1 text-yellow-600 hover:text-yellow-800"
-                                title="Editar"
-                              >
-                                <Edit size={18} />
-                              </Link>
-                              <button
-                                className="p-1 text-red-600 hover:text-red-800"
-                                title="Cancelar"
-                                onClick={() => {
-                                  if(confirm('Tem certeza que deseja cancelar esta devolução? Esta ação não poderá ser desfeita.')) {
-                                    handleUpdateStatus(devolucao.id, 'cancelado', {});
-                                  }
-                                }}
-                              >
-                                <Trash size={18} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={8} className="px-6 py-4 text-center text-sm text-gray-500">
-                      Nenhuma devolução encontrada
+              ) : devolucoesFiltradas.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                    Nenhuma devolução encontrada
+                  </td>
+                </tr>
+              ) : (
+                devolucoesFiltradas.map((devolucao) => (
+                  <tr key={devolucao.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {devolucao.codigo}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${STATUS_MAP[devolucao.status]?.className || 'bg-gray-100 text-gray-800'}`}>
+                        {STATUS_MAP[devolucao.status]?.icon}
+                        {STATUS_MAP[devolucao.status]?.label || devolucao.status}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {new Date(devolucao.data).toLocaleDateString('pt-BR')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
+                      {devolucao.status === 'pendente' ? '-' : 
+                        devolucao.produtos && devolucao.produtos.length > 0 
+                          ? devolucao.produtos.map(p => p.nome).join(', ')
+                          : devolucao.produto || '-'
+                      }
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {devolucao.status === 'pendente' ? '-' : (MOTIVO_MAP[devolucao.motivo] || '-')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex space-x-2">
+                        <button
+                          className="text-blue-600 hover:text-blue-900"
+                          onClick={() => abrirDetalhes(devolucao.id)}
+                          title="Ver detalhes"
+                        >
+                          <Eye size={18} />
+                        </button>
+                        <Link
+                          href={`/dashboard/devolucoes/edicao/${devolucao.id}`}
+                          className="text-green-600 hover:text-green-900"
+                          title="Editar"
+                        >
+                          <Edit size={18} />
+                        </Link>
+                      </div>
                     </td>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
 
-          <div className="bg-gray-50 px-4 py-3 border-t">
-            <div className="text-sm text-gray-700">
-              Mostrando <span className="font-medium">{devolucoesFiltradas.length}</span> de{' '}
-              <span className="font-medium">{DEVOLUCOES_MOCK.length}</span> devoluções
-            </div>
+        <div className="px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+          <div className="text-sm text-gray-700">
+            Mostrando <span className="font-medium">{devolucoesFiltradas.length}</span> de{' '}
+            <span className="font-medium">{devolucoes.length}</span> devoluções
           </div>
         </div>
       </div>
@@ -1037,10 +1162,11 @@ export default function AcompanhamentoDevolucaoPage() {
       {detalheDevolucao && (
         <ModalDetalhes
           devolucao={detalheDevolucao}
-          onClose={fecharDetalhes}
+          onClose={() => setDetalheDevolucao(null)}
           onUpdateStatus={handleUpdateStatus}
+          onRefresh={carregarDevolucoes}
         />
       )}
-    </>
+    </div>
   );
 } 

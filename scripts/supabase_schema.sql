@@ -131,7 +131,31 @@ CREATE TABLE rotas (
   destino TEXT NOT NULL,
   observacoes TEXT,
   status route_status NOT NULL DEFAULT 'pendente',
+  
+  -- Campos adicionais para gerenciamento da entrega
+  cliente_nome VARCHAR(255),
+  cliente_telefone VARCHAR(20),
+  cliente_email VARCHAR(255),
+  endereco_completo TEXT,
+  cidade VARCHAR(100),
+  cep VARCHAR(10),
+  complemento VARCHAR(255),
+  
+  -- Campos para rastreamento e confirmação de entrega
+  data_inicio TIMESTAMP WITH TIME ZONE,
+  data_entrega_efetiva TIMESTAMP WITH TIME ZONE,
+  assinatura_url TEXT,
+  data_assinatura TIMESTAMP WITH TIME ZONE,
+  responsavel_recebimento VARCHAR(255),
+  observacoes_entrega TEXT,
+  
+  -- Campos para rastreamento de localização
+  ultima_latitude DECIMAL(10, 6),
+  ultima_longitude DECIMAL(10, 6),
+  ultima_atualizacao_local TIMESTAMP WITH TIME ZONE,
+  
   created_by UUID NOT NULL REFERENCES profiles(id),
+  updated_by UUID REFERENCES profiles(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -306,6 +330,25 @@ CREATE TABLE avisos_reacoes (
   tipo aviso_reacao NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(aviso_id, usuario_id)
+);
+
+-- Tabela de fotos de entrega
+CREATE TABLE fotos_entrega (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rota_id UUID NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
+  url VARCHAR(255) NOT NULL,
+  uploaded_by UUID REFERENCES profiles(id),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Tabela de histórico de localização durante entregas
+CREATE TABLE localizacoes_entrega (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  rota_id UUID NOT NULL REFERENCES rotas(id) ON DELETE CASCADE,
+  motorista_id UUID NOT NULL REFERENCES profiles(id),
+  latitude DECIMAL(10, 6) NOT NULL,
+  longitude DECIMAL(10, 6) NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ====== TRIGGERS PARA GERAÇÃO DE CÓDIGOS ======
