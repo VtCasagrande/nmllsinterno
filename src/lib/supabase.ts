@@ -246,14 +246,221 @@ export type Database = {
           user_agent?: string | null;
         };
       };
+      sugestoes: {
+        Row: {
+          id: string;
+          ean: string;
+          nome_produto: string;
+          fornecedor: string | null;
+          cliente: string | null;
+          telefone_cliente: string | null;
+          urgencia: 'baixa' | 'media' | 'alta';
+          status: 'criado' | 'em_analise' | 'aprovado' | 'rejeitado' | 'concluido';
+          observacao: string | null;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          ean: string;
+          nome_produto: string;
+          fornecedor?: string | null;
+          cliente?: string | null;
+          telefone_cliente?: string | null;
+          urgencia?: 'baixa' | 'media' | 'alta';
+          status?: 'criado' | 'em_analise' | 'aprovado' | 'rejeitado' | 'concluido';
+          observacao?: string | null;
+          created_by: string;
+        };
+        Update: {
+          id?: string;
+          ean?: string;
+          nome_produto?: string;
+          fornecedor?: string | null;
+          cliente?: string | null;
+          telefone_cliente?: string | null;
+          urgencia?: 'baixa' | 'media' | 'alta';
+          status?: 'criado' | 'em_analise' | 'aprovado' | 'rejeitado' | 'concluido';
+          observacao?: string | null;
+          created_by?: string;
+          updated_at?: string;
+        };
+      };
+      sugestoes_comentarios: {
+        Row: {
+          id: string;
+          sugestao_id: string;
+          usuario_id: string;
+          texto: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          sugestao_id: string;
+          usuario_id: string;
+          texto: string;
+        };
+        Update: {
+          id?: string;
+          sugestao_id?: string;
+          usuario_id?: string;
+          texto?: string;
+        };
+      };
+      trocas: {
+        Row: {
+          id: string;
+          tipo: 'enviada' | 'recebida';
+          status: 'pendente' | 'em_andamento' | 'aguardando_devolucao' | 'coletado' | 'concluida' | 'cancelada';
+          ean: string;
+          nome_produto: string;
+          loja_parceira: string;
+          responsavel: string;
+          telefone_responsavel: string | null;
+          motivo: string;
+          observacoes: string | null;
+          quantidade: number;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          tipo: 'enviada' | 'recebida';
+          status?: 'pendente' | 'em_andamento' | 'aguardando_devolucao' | 'coletado' | 'concluida' | 'cancelada';
+          ean: string;
+          nome_produto: string;
+          loja_parceira: string;
+          responsavel: string;
+          telefone_responsavel?: string | null;
+          motivo: string;
+          observacoes?: string | null;
+          quantidade?: number;
+          created_by: string;
+        };
+        Update: {
+          id?: string;
+          tipo?: 'enviada' | 'recebida';
+          status?: 'pendente' | 'em_andamento' | 'aguardando_devolucao' | 'coletado' | 'concluida' | 'cancelada';
+          ean?: string;
+          nome_produto?: string;
+          loja_parceira?: string;
+          responsavel?: string;
+          telefone_responsavel?: string | null;
+          motivo?: string;
+          observacoes?: string | null;
+          quantidade?: number;
+          created_by?: string;
+          updated_at?: string;
+        };
+      };
+      trocas_comentarios: {
+        Row: {
+          id: string;
+          troca_id: string;
+          usuario_id: string;
+          texto: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          troca_id: string;
+          usuario_id: string;
+          texto: string;
+        };
+        Update: {
+          id?: string;
+          troca_id?: string;
+          usuario_id?: string;
+          texto?: string;
+        };
+      };
+      avisos: {
+        Row: {
+          id: string;
+          titulo: string;
+          conteudo: string;
+          tipo_destinatario: 'todos' | 'grupo' | 'usuarios';
+          grupos: string[] | null;
+          usuarios: string[] | null;
+          prioridade: 'baixa' | 'normal' | 'alta';
+          status: 'ativo' | 'arquivado';
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          titulo: string;
+          conteudo: string;
+          tipo_destinatario: 'todos' | 'grupo' | 'usuarios';
+          grupos?: string[] | null;
+          usuarios?: string[] | null;
+          prioridade?: 'baixa' | 'normal' | 'alta';
+          status?: 'ativo' | 'arquivado';
+          created_by: string;
+        };
+        Update: {
+          id?: string;
+          titulo?: string;
+          conteudo?: string;
+          tipo_destinatario?: 'todos' | 'grupo' | 'usuarios';
+          grupos?: string[] | null;
+          usuarios?: string[] | null;
+          prioridade?: 'baixa' | 'normal' | 'alta';
+          status?: 'ativo' | 'arquivado';
+          created_by?: string;
+          updated_at?: string;
+        };
+      };
+      avisos_visualizacoes: {
+        Row: {
+          id: string;
+          aviso_id: string;
+          usuario_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          aviso_id: string;
+          usuario_id: string;
+        };
+        Update: {
+          id?: string;
+          aviso_id?: string;
+          usuario_id?: string;
+        };
+      };
+      avisos_reacoes: {
+        Row: {
+          id: string;
+          aviso_id: string;
+          usuario_id: string;
+          tipo: 'concordar' | 'discordar' | 'verificado';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          aviso_id: string;
+          usuario_id: string;
+          tipo: 'concordar' | 'discordar' | 'verificado';
+        };
+        Update: {
+          id?: string;
+          aviso_id?: string;
+          usuario_id?: string;
+          tipo?: 'concordar' | 'discordar' | 'verificado';
+        };
+      };
     };
   };
 };
 
 // Criar cliente Supabase
 export const supabase = createClient<Database>(
-  supabaseUrl || 'https://example.com', // Fallback para evitar erro
-  supabaseAnonKey || 'fallback-key'     // Fallback para evitar erro
+  supabaseUrl || 'https://example.com',
+  supabaseAnonKey || 'fallback-key'
 );
 
 // Função para registrar um log de ação
@@ -261,7 +468,8 @@ export const logAction = async (
   acao: Database['public']['tables']['logs']['Insert']['acao'],
   descricao: string,
   entidade: Database['public']['tables']['logs']['Insert']['entidade'],
-  entidadeId?: string
+  entidadeId?: string,
+  userId?: string
 ) => {
   try {
     // Se não tiver as credenciais do Supabase, só loga no console
@@ -275,6 +483,7 @@ export const logAction = async (
       descricao,
       entidade,
       entidade_id: entidadeId,
+      usuario_id: userId,
       ip: '127.0.0.1', // No lado do cliente, o IP é obtido pelo servidor
     });
 

@@ -16,7 +16,12 @@ import {
   Pill,
   Clock,
   Bug,
-  AlertTriangle
+  AlertTriangle,
+  Calendar,
+  Database,
+  PlusCircle,
+  List,
+  AlertCircle
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -148,6 +153,13 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [configuracoesSubmenuOpen, setConfiguracoesSubmenuOpen] = useState(false);
   const [ajudaSubmenuOpen, setAjudaSubmenuOpen] = useState(false);
   const [medicamentosSubmenuOpen, setMedicamentosSubmenuOpen] = useState(false);
+  const [crmSubmenuOpen, setCrmSubmenuOpen] = useState(false);
+  const [sugestoesSubmenuOpen, setSugestoesSubmenuOpen] = useState(false);
+  const [trocasSubmenuOpen, setTrocasSubmenuOpen] = useState(false);
+  const [recorrenciasSubmenuOpen, setRecorrenciasSubmenuOpen] = useState(false);
+  const [reembolsosSubmenuOpen, setReembolsosSubmenuOpen] = useState(false);
+  const [avisosSubmenuOpen, setAvisosSubmenuOpen] = useState(false);
+  const [logsSubmenuOpen, setLogsSubmenuOpen] = useState(false);
   
   const pathname = usePathname();
   
@@ -351,33 +363,141 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               />
             </SidebarSubmenu>
             
-            <SidebarLink
-              href="/dashboard/trocas"
-              icon={<Store />}
+            <SidebarSubmenu
               text="Trocas Entre Lojas"
               isActive={isActiveParent('/dashboard/trocas')}
+              isOpen={trocasSubmenuOpen}
+              onClick={() => setTrocasSubmenuOpen(!trocasSubmenuOpen)}
+              icon={<Store />}
               tooltip="Gerenciar transferências entre lojas"
-            />
+            >
+              <SidebarLink
+                href="/dashboard/trocas"
+                icon={<List size={18} />}
+                text="Listar Trocas"
+                isActive={isActive('/dashboard/trocas')}
+              />
+              <SidebarLink
+                href="/dashboard/trocas/nova"
+                icon={<PlusCircle size={18} />}
+                text="Nova Troca"
+                isActive={isActive('/dashboard/trocas/nova')}
+              />
+            </SidebarSubmenu>
             
-            <SidebarLink
-              href="/dashboard/recorrencias"
-              icon={<RefreshCw />}
+            <SidebarSubmenu
+              text="Sugestões de Compras"
+              isActive={isActiveParent('/dashboard/sugestoes')}
+              isOpen={sugestoesSubmenuOpen}
+              onClick={() => setSugestoesSubmenuOpen(!sugestoesSubmenuOpen)}
+              icon={<ShoppingCart />}
+              tooltip="Recomendações de produtos"
+            >
+              <SidebarLink
+                href="/dashboard/sugestoes"
+                icon={<List size={18} />}
+                text="Listar Sugestões"
+                isActive={isActive('/dashboard/sugestoes')}
+              />
+              <SidebarLink
+                href="/dashboard/sugestoes/novo"
+                icon={<PlusCircle size={18} />}
+                text="Nova Sugestão"
+                isActive={isActive('/dashboard/sugestoes/novo')}
+              />
+            </SidebarSubmenu>
+            
+            <SidebarSubmenu
               text="Recorrências"
               isActive={isActiveParent('/dashboard/recorrencias')}
+              isOpen={recorrenciasSubmenuOpen}
+              onClick={() => setRecorrenciasSubmenuOpen(!recorrenciasSubmenuOpen)}
+              icon={<RefreshCw />}
               tooltip="Gerenciar clientes recorrentes"
-            />
+            >
+              <SidebarLink
+                href="/dashboard/recorrencias"
+                icon={<List size={18} />}
+                text="Listar Recorrências"
+                isActive={isActive('/dashboard/recorrencias')}
+              />
+              <SidebarLink
+                href="/dashboard/recorrencias/nova"
+                icon={<PlusCircle size={18} />}
+                text="Nova Recorrência"
+                isActive={isActive('/dashboard/recorrencias/nova')}
+              />
+            </SidebarSubmenu>
           </SidebarCategory>
           
           {/* Gestão */}
           <SidebarCategory title="Gestão">
-            <SidebarLink
-              href="/dashboard/crm"
-              icon={<PhoneCall />}
+            <SidebarSubmenu
               text="CRM"
               isActive={isActiveParent('/dashboard/crm')}
+              isOpen={crmSubmenuOpen}
+              onClick={() => setCrmSubmenuOpen(!crmSubmenuOpen)}
+              icon={<PhoneCall />}
               tooltip="Gerenciamento de Relacionamento com Clientes"
-            />
+            >
+              <SidebarLink
+                href="/dashboard/crm"
+                icon={<User size={18} />}
+                text="Atendimentos"
+                isActive={isActive('/dashboard/crm')}
+              />
+              <SidebarLink
+                href="/dashboard/crm/calendario"
+                icon={<Calendar size={18} />}
+                text="Calendário"
+                isActive={isActive('/dashboard/crm/calendario')}
+              />
+            </SidebarSubmenu>
             
+            <SidebarSubmenu
+              text="Medicamentos"
+              isActive={isActiveParent('/dashboard/medicamentos')}
+              isOpen={medicamentosSubmenuOpen}
+              onClick={() => setMedicamentosSubmenuOpen(!medicamentosSubmenuOpen)}
+              icon={<Pill />}
+              tooltip="Gerenciamento de medicamentos"
+            >
+              <SidebarLink
+                href="/dashboard/medicamentos/lembretes"
+                icon={<Clock size={18} />}
+                text="Lembretes"
+                isActive={isActive('/dashboard/medicamentos/lembretes')}
+              />
+            </SidebarSubmenu>
+          </SidebarCategory>
+          
+          {/* Financeiro */}
+          <SidebarCategory title="Financeiro">
+            <SidebarSubmenu
+              text="Reembolsos"
+              isActive={isActiveParent('/dashboard/reembolsos')}
+              isOpen={reembolsosSubmenuOpen}
+              onClick={() => setReembolsosSubmenuOpen(!reembolsosSubmenuOpen)}
+              icon={<DollarSign />}
+              tooltip="Gestão de reembolsos"
+            >
+              <SidebarLink
+                href="/dashboard/reembolsos"
+                icon={<List size={18} />}
+                text="Listar Reembolsos"
+                isActive={isActive('/dashboard/reembolsos')}
+              />
+              <SidebarLink
+                href="/dashboard/reembolsos/novo"
+                icon={<PlusCircle size={18} />}
+                text="Novo Reembolso"
+                isActive={isActive('/dashboard/reembolsos/novo')}
+              />
+            </SidebarSubmenu>
+          </SidebarCategory>
+          
+          {/* Administração */}
+          <SidebarCategory title="Administração">
             <SidebarSubmenu
               text="Usuários"
               isActive={isActiveParent('/dashboard/usuarios')}
@@ -401,51 +521,52 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </SidebarSubmenu>
             
             <SidebarSubmenu
-              text="Medicamentos"
-              isActive={isActiveParent('/dashboard/medicamentos')}
-              isOpen={medicamentosSubmenuOpen}
-              onClick={() => setMedicamentosSubmenuOpen(!medicamentosSubmenuOpen)}
-              icon={<Pill />}
-              tooltip="Gerenciamento de medicamentos"
+              text="Logs do Sistema"
+              isActive={isActiveParent('/dashboard/logs')}
+              isOpen={logsSubmenuOpen}
+              onClick={() => setLogsSubmenuOpen(!logsSubmenuOpen)}
+              icon={<Database />}
+              tooltip="Visualização de logs do sistema"
             >
               <SidebarLink
-                href="/dashboard/medicamentos/lembretes"
-                icon={<Clock size={18} />}
-                text="Lembretes"
-                isActive={isActive('/dashboard/medicamentos/lembretes')}
+                href="/dashboard/logs"
+                icon={<List size={18} />}
+                text="Todos os Logs"
+                isActive={isActive('/dashboard/logs')}
+              />
+              <SidebarLink
+                href="/dashboard/logs/erros"
+                icon={<AlertCircle size={18} />}
+                text="Logs de Erros"
+                isActive={isActive('/dashboard/logs/erros')}
               />
             </SidebarSubmenu>
-            
-            <SidebarLink
-              href="/dashboard/sugestoes"
-              icon={<ShoppingCart />}
-              text="Sugestões de Compras"
-              isActive={isActiveParent('/dashboard/sugestoes')}
-              tooltip="Recomendações de produtos"
-            />
-            
-            <SidebarLink
-              href="/dashboard/avisos"
-              icon={<BellRing />}
+          </SidebarCategory>
+          
+          {/* Sistema */}
+          <SidebarCategory title="Sistema">
+            <SidebarSubmenu
               text="Notificações"
               isActive={isActiveParent('/dashboard/avisos')}
+              isOpen={avisosSubmenuOpen}
+              onClick={() => setAvisosSubmenuOpen(!avisosSubmenuOpen)}
+              icon={<BellRing />}
               tooltip="Gerenciar notificações do sistema"
-            />
-          </SidebarCategory>
-          
-          {/* Financeiro */}
-          <SidebarCategory title="Financeiro">
-            <SidebarLink
-              href="/dashboard/reembolsos"
-              icon={<DollarSign />}
-              text="Reembolsos"
-              isActive={isActiveParent('/dashboard/reembolsos')}
-              tooltip="Gestão de reembolsos"
-            />
-          </SidebarCategory>
-          
-          {/* Configurações */}
-          <SidebarCategory title="Sistema">
+            >
+              <SidebarLink
+                href="/dashboard/avisos"
+                icon={<List size={18} />}
+                text="Listar Notificações"
+                isActive={isActive('/dashboard/avisos')}
+              />
+              <SidebarLink
+                href="/dashboard/avisos/novo"
+                icon={<PlusCircle size={18} />}
+                text="Nova Notificação"
+                isActive={isActive('/dashboard/avisos/novo')}
+              />
+            </SidebarSubmenu>
+
             <SidebarSubmenu
               text="Configurações"
               isActive={isActiveParent('/dashboard/configuracoes')}

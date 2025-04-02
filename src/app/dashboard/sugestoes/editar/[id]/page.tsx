@@ -304,10 +304,10 @@ export default function EditarSugestaoPage({ params }: { params: { id: string } 
                     className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     required
                   >
-                    <option value={UrgenciaSugestao.BAIXA}>Baixa</option>
-                    <option value={UrgenciaSugestao.MEDIA}>Média</option>
-                    <option value={UrgenciaSugestao.ALTA}>Alta</option>
-                    <option value={UrgenciaSugestao.CRITICA}>Crítica</option>
+                    <option value={UrgenciaSugestao.BAIXA}>Baixa (1-2 semanas)</option>
+                    <option value={UrgenciaSugestao.MEDIA}>Média (5-10 dias)</option>
+                    <option value={UrgenciaSugestao.ALTA}>Alta (2-5 dias)</option>
+                    <option value={UrgenciaSugestao.CRITICA}>Crítica (1 dia)</option>
                   </select>
                 </div>
 

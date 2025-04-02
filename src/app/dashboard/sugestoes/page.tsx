@@ -64,13 +64,13 @@ export default function SugestoesPage() {
   const getUrgenciaLabel = (urgencia: UrgenciaSugestao) => {
     switch(urgencia) {
       case UrgenciaSugestao.BAIXA:
-        return 'Baixa';
+        return 'Baixa (1-2 semanas)';
       case UrgenciaSugestao.MEDIA:
-        return 'Média';
+        return 'Média (5-10 dias)';
       case UrgenciaSugestao.ALTA:
-        return 'Alta';
+        return 'Alta (2-5 dias)';
       case UrgenciaSugestao.CRITICA:
-        return 'Crítica';
+        return 'Crítica (1 dia)';
       default:
         return 'Desconhecida';
     }
@@ -645,10 +645,10 @@ export default function SugestoesPage() {
                 onChange={(e) => atualizarFiltro('urgencia', e.target.value ? [e.target.value as UrgenciaSugestao] : undefined)}
               >
                 <option value="">Todas</option>
-                <option value={UrgenciaSugestao.BAIXA}>Baixa</option>
-                <option value={UrgenciaSugestao.MEDIA}>Média</option>
-                <option value={UrgenciaSugestao.ALTA}>Alta</option>
-                <option value={UrgenciaSugestao.CRITICA}>Crítica</option>
+                <option value={UrgenciaSugestao.BAIXA}>Baixa (1-2 semanas)</option>
+                <option value={UrgenciaSugestao.MEDIA}>Média (5-10 dias)</option>
+                <option value={UrgenciaSugestao.ALTA}>Alta (2-5 dias)</option>
+                <option value={UrgenciaSugestao.CRITICA}>Crítica (1 dia)</option>
               </select>
             </div>
             

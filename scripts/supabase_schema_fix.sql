@@ -17,14 +17,30 @@ $$ LANGUAGE plpgsql;
 -- Função para criar um novo registro de log automaticamente
 CREATE OR REPLACE FUNCTION log_action()
 RETURNS TRIGGER AS $$
+DECLARE
+  entity_id text;
 BEGIN
+  -- Use uma abordagem mais segura para obter o ID
+  IF TG_OP = 'INSERT' OR TG_OP = 'UPDATE' THEN
+    entity_id := NEW.id::text;
+  ELSIF TG_OP = 'DELETE' THEN
+    entity_id := OLD.id::text;
+  ELSE
+    entity_id := NULL;
+  END IF;
+
   INSERT INTO logs (usuario_id, acao, descricao, entidade, entidade_id)
   VALUES (auth.uid(), 
           TG_ARGV[0]::log_action, 
           TG_ARGV[1], 
           TG_ARGV[2]::log_entity, 
-          NEW.id::text);
-  RETURN NEW;
+          entity_id);
+          
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  ELSE
+    RETURN NEW;
+  END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 

@@ -14,6 +14,9 @@ import {
 import { useAuth } from './AuthContext';
 import { useWebhooks } from './WebhooksContext';
 import { WebhookEventType, SugestaoEventPayload } from '@/types/webhooks';
+import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'react-hot-toast';
 
 // Interface para o contexto
 interface SugestoesContextType {
@@ -47,66 +50,177 @@ interface SugestoesProviderProps {
   children: ReactNode;
 }
 
-// Dados de exemplo para sugestões
-const SUGESTOES_MOCK: Sugestao[] = [
-  {
-    id: '1',
-    data: new Date().toISOString(),
-    ean: '7891234567890',
-    nomeProduto: 'Detergente Líquido Ypê',
-    fornecedor: 'Ypê',
-    cliente: 'Maria Silva',
-    telefoneCliente: '(11) 98765-4321',
-    urgencia: UrgenciaSugestao.ALTA,
-    status: StatusSugestao.CRIADO,
-    observacao: 'Cliente frequente, solicita o produto semanalmente',
-    comentarios: [
-      {
-        id: '1',
-        usuarioId: 'admin',
-        usuarioNome: 'Administrador',
-        texto: 'Entrei em contato com o fornecedor, previsão de entrega em 5 dias',
-        dataCriacao: new Date(Date.now() - 86400000).toISOString() // um dia atrás
-      }
-    ],
-    criadoPor: 'admin',
-    dataCriacao: new Date(Date.now() - 172800000).toISOString(), // dois dias atrás
-    dataAtualizacao: new Date(Date.now() - 86400000).toISOString() // um dia atrás
-  }
-];
-
 // Provider component
 export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }) => {
-  const [sugestoes, setSugestoes] = useState<Sugestao[]>(SUGESTOES_MOCK);
-  const [loading, setLoading] = useState<boolean>(false);
+  const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const { profile } = useAuth();
   const { dispararWebhook } = useWebhooks();
 
-  // Carregar sugestões do armazenamento local ao iniciar
+  // Carregar sugestões do Supabase ao iniciar
   useEffect(() => {
-    const loadSugestoes = () => {
+    const fetchSugestoes = async () => {
       try {
-        const savedSugestoes = localStorage.getItem('sugestoes');
-        if (savedSugestoes) {
-          setSugestoes(JSON.parse(savedSugestoes));
+        setLoading(true);
+        const { data, error } = await supabase
+          .from('sugestoes')
+          .select(`
+            id,
+            ean,
+            nome_produto,
+            fornecedor,
+            cliente,
+            telefone_cliente,
+            urgencia,
+            status,
+            observacao,
+            created_by,
+            created_at,
+            updated_at,
+            sugestoes_comentarios (
+              id,
+              usuario_id,
+              texto,
+              created_at,
+              profiles:usuario_id (
+                name
+              )
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          throw new Error(error.message);
         }
-      } catch (err) {
+
+        // Transformar dados do Supabase para o formato da aplicação
+        const formattedSugestoes: Sugestao[] = data.map(item => ({
+          id: item.id,
+          ean: item.ean,
+          nomeProduto: item.nome_produto,
+          fornecedor: item.fornecedor || '',
+          cliente: item.cliente || '',
+          telefoneCliente: item.telefone_cliente || '',
+          urgencia: item.urgencia as UrgenciaSugestao,
+          status: item.status as StatusSugestao,
+          observacao: item.observacao || '',
+          criadoPor: item.created_by,
+          dataCriacao: item.created_at,
+          dataAtualizacao: item.updated_at,
+          comentarios: item.sugestoes_comentarios?.map(c => ({
+            id: c.id,
+            usuarioId: c.usuario_id,
+            usuarioNome: c.profiles?.name || 'Usuário',
+            texto: c.texto,
+            dataCriacao: c.created_at
+          })) || []
+        }));
+
+        setSugestoes(formattedSugestoes);
+      } catch (err: any) {
         console.error('Erro ao carregar sugestões:', err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
       }
     };
 
-    loadSugestoes();
+    fetchSugestoes();
   }, []);
 
-  // Salvar sugestões no armazenamento local quando mudar
+  // Adicionar listener para atualizações em tempo real
   useEffect(() => {
-    try {
-      localStorage.setItem('sugestoes', JSON.stringify(sugestoes));
-    } catch (err) {
-      console.error('Erro ao salvar sugestões:', err);
-    }
-  }, [sugestoes]);
+    const sugestoesChannel = supabase
+      .channel('public:sugestoes')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'sugestoes' 
+      }, async (payload) => {
+        await fetchSugestoes();
+      })
+      .subscribe();
+
+    const comentariosChannel = supabase
+      .channel('public:sugestoes_comentarios')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'sugestoes_comentarios' 
+      }, async (payload) => {
+        await fetchSugestoes();
+      })
+      .subscribe();
+
+    // Função para carregar dados
+    const fetchSugestoes = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('sugestoes')
+          .select(`
+            id,
+            ean,
+            nome_produto,
+            fornecedor,
+            cliente,
+            telefone_cliente,
+            urgencia,
+            status,
+            observacao,
+            created_by,
+            created_at,
+            updated_at,
+            sugestoes_comentarios (
+              id,
+              usuario_id,
+              texto,
+              created_at,
+              profiles:usuario_id (
+                name
+              )
+            )
+          `)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          throw new Error(error.message);
+        }
+
+        // Transformar dados do Supabase para o formato da aplicação
+        const formattedSugestoes: Sugestao[] = data.map(item => ({
+          id: item.id,
+          ean: item.ean,
+          nomeProduto: item.nome_produto,
+          fornecedor: item.fornecedor || '',
+          cliente: item.cliente || '',
+          telefoneCliente: item.telefone_cliente || '',
+          urgencia: item.urgencia as UrgenciaSugestao,
+          status: item.status as StatusSugestao,
+          observacao: item.observacao || '',
+          criadoPor: item.created_by,
+          dataCriacao: item.created_at,
+          dataAtualizacao: item.updated_at,
+          comentarios: item.sugestoes_comentarios?.map(c => ({
+            id: c.id,
+            usuarioId: c.usuario_id,
+            usuarioNome: c.profiles?.name || 'Usuário',
+            texto: c.texto,
+            dataCriacao: c.created_at
+          })) || []
+        }));
+
+        setSugestoes(formattedSugestoes);
+      } catch (err: any) {
+        console.error('Erro ao atualizar sugestões:', err);
+      }
+    };
+
+    return () => {
+      supabase.removeChannel(sugestoesChannel);
+      supabase.removeChannel(comentariosChannel);
+    };
+  }, []);
 
   // Obter uma sugestão específica pelo ID
   const getSugestao = (id: string) => sugestoes.find(sugestao => sugestao.id === id);
@@ -177,23 +291,78 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
       
       const now = new Date().toISOString();
       
-      // Se o status mudou, atualizar as datas correspondentes
-      let dataFields = {};
-      if (data.status) {
-        if (data.status === StatusSugestao.PEDIDO_REALIZADO && sugestao.status !== StatusSugestao.PEDIDO_REALIZADO) {
-          dataFields = { dataPedidoRealizado: now };
-        } else if (data.status === StatusSugestao.PRODUTO_CHEGOU && sugestao.status !== StatusSugestao.PRODUTO_CHEGOU) {
-          dataFields = { dataProdutoChegou: now };
-        }
+      // Mapear campos para o formato do Supabase
+      const supabaseData: any = {};
+      if (data.ean !== undefined) supabaseData.ean = data.ean;
+      if (data.nomeProduto !== undefined) supabaseData.nome_produto = data.nomeProduto;
+      if (data.fornecedor !== undefined) supabaseData.fornecedor = data.fornecedor;
+      if (data.cliente !== undefined) supabaseData.cliente = data.cliente;
+      if (data.telefoneCliente !== undefined) supabaseData.telefone_cliente = data.telefoneCliente;
+      if (data.urgencia !== undefined) supabaseData.urgencia = data.urgencia;
+      if (data.status !== undefined) supabaseData.status = data.status;
+      if (data.observacao !== undefined) supabaseData.observacao = data.observacao;
+      
+      // Atualizar no Supabase
+      const { data: updatedData, error } = await supabase
+        .from('sugestoes')
+        .update({
+          ...supabaseData,
+          updated_at: now
+        })
+        .eq('id', id)
+        .select(`
+          id,
+          ean,
+          nome_produto,
+          fornecedor,
+          cliente,
+          telefone_cliente,
+          urgencia,
+          status,
+          observacao,
+          created_by,
+          created_at,
+          updated_at,
+          sugestoes_comentarios (
+            id,
+            usuario_id,
+            texto,
+            created_at,
+            profiles:usuario_id (
+              name
+            )
+          )
+        `)
+        .single();
+      
+      if (error) {
+        throw new Error(`Erro ao atualizar sugestão: ${error.message}`);
       }
       
-      const updatedSugestao = {
-        ...sugestao,
-        ...data,
-        ...dataFields,
-        dataAtualizacao: now
+      // Transformar resposta para o formato da aplicação
+      const updatedSugestao: Sugestao = {
+        id: updatedData.id,
+        ean: updatedData.ean,
+        nomeProduto: updatedData.nome_produto,
+        fornecedor: updatedData.fornecedor || '',
+        cliente: updatedData.cliente || '',
+        telefoneCliente: updatedData.telefone_cliente || '',
+        urgencia: updatedData.urgencia as UrgenciaSugestao,
+        status: updatedData.status as StatusSugestao,
+        observacao: updatedData.observacao || '',
+        criadoPor: updatedData.created_by,
+        dataCriacao: updatedData.created_at,
+        dataAtualizacao: updatedData.updated_at,
+        comentarios: updatedData.sugestoes_comentarios?.map(c => ({
+          id: c.id,
+          usuarioId: c.usuario_id,
+          usuarioNome: c.profiles?.name || 'Usuário',
+          texto: c.texto,
+          dataCriacao: c.created_at
+        })) || []
       };
       
+      // Atualizar estado local
       setSugestoes(prev => prev.map(s => s.id === id ? updatedSugestao : s));
       
       // Disparar webhook se o status foi alterado
@@ -245,22 +414,67 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
     setError(null);
     
     try {
-      // Em uma aplicação real, isso seria uma chamada API
+      if (!profile) {
+        throw new Error('Usuário não autenticado');
+      }
+      
       const now = new Date().toISOString();
+      
+      // Inserir no Supabase
+      const { data: newData, error } = await supabase
+        .from('sugestoes')
+        .insert({
+          ean: data.ean,
+          nome_produto: data.nomeProduto,
+          fornecedor: data.fornecedor,
+          cliente: data.cliente,
+          telefone_cliente: data.telefoneCliente,
+          urgencia: data.urgencia || UrgenciaSugestao.MEDIA,
+          status: StatusSugestao.CRIADO,
+          observacao: data.observacao,
+          created_by: profile.id
+        })
+        .select(`
+          id,
+          ean,
+          nome_produto,
+          fornecedor,
+          cliente,
+          telefone_cliente,
+          urgencia,
+          status,
+          observacao,
+          created_by,
+          created_at,
+          updated_at
+        `)
+        .single();
+      
+      if (error) {
+        throw new Error(`Erro ao criar sugestão: ${error.message}`);
+      }
+      
+      // Formatar para o modelo da aplicação
       const newSugestao: Sugestao = {
-        ...data,
-        id: Date.now().toString(),
-        data: now,
-        status: StatusSugestao.CRIADO,
-        comentarios: [],
-        criadoPor: profile?.id || 'unknown',
-        dataCriacao: now,
-        dataAtualizacao: now
+        id: newData.id,
+        ean: newData.ean,
+        nomeProduto: newData.nome_produto,
+        fornecedor: newData.fornecedor || '',
+        cliente: newData.cliente || '',
+        telefoneCliente: newData.telefone_cliente || '',
+        urgencia: newData.urgencia as UrgenciaSugestao,
+        status: newData.status as StatusSugestao,
+        observacao: newData.observacao || '',
+        criadoPor: newData.created_by,
+        dataCriacao: newData.created_at,
+        dataAtualizacao: newData.updated_at,
+        comentarios: []
       };
       
-      setSugestoes(prev => [...prev, newSugestao]);
+      // Atualizar estado local
+      setSugestoes(prev => [newSugestao, ...prev]);
       
-      // Disparar webhook para sugestão criada
+      // Disparar webhook para nova sugestão
       const payload: SugestaoEventPayload = {
         evento: WebhookEventType.SUGESTAO_CRIADA,
         timestamp: now,
@@ -294,7 +508,19 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
     setError(null);
     
     try {
-      setSugestoes(prev => prev.filter(sugestao => sugestao.id !== id));
+      // Excluir do Supabase
+      const { error } = await supabase
+        .from('sugestoes')
+        .delete()
+        .eq('id', id);
+      
+      if (error) {
+        throw new Error(`Erro ao excluir sugestão: ${error.message}`);
+      }
+      
+      // Atualizar estado local
+      setSugestoes(prev => prev.filter(s => s.id !== id));
+      
       return true;
     } catch (err: any) {
       setError(err.message || 'Erro ao excluir sugestão');
@@ -310,29 +536,60 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
     setError(null);
     
     try {
+      if (!profile) {
+        throw new Error('Usuário não autenticado');
+      }
+      
+      // Verificar se a sugestão existe
       const sugestao = getSugestao(sugestaoId);
       if (!sugestao) {
         throw new Error(`Sugestão com ID ${sugestaoId} não encontrada`);
       }
       
-      const now = new Date().toISOString();
+      // Inserir no Supabase
+      const { data: newComentario, error } = await supabase
+        .from('sugestoes_comentarios')
+        .insert({
+          sugestao_id: sugestaoId,
+          usuario_id: profile.id,
+          texto: comentarioData.texto
+        })
+        .select(`
+          id,
+          usuario_id,
+          texto,
+          created_at,
+          profiles:usuario_id (
+            name
+          )
+        `)
+        .single();
       
-      const newComentario: Comentario = {
-        id: Date.now().toString(),
-        usuarioId: profile?.id || 'unknown',
-        usuarioNome: profile?.name || 'Usuário',
-        texto: comentarioData.texto,
-        dataCriacao: now
+      if (error) {
+        throw new Error(`Erro ao adicionar comentário: ${error.message}`);
+      }
+      
+      // Formatar para o modelo da aplicação
+      const comentario: Comentario = {
+        id: newComentario.id,
+        usuarioId: newComentario.usuario_id,
+        usuarioNome: newComentario.profiles?.name || profile.name || 'Usuário',
+        texto: newComentario.texto,
+        dataCriacao: newComentario.created_at
       };
       
-      const updatedSugestao = {
-        ...sugestao,
-        comentarios: [...sugestao.comentarios, newComentario],
-        dataAtualizacao: now
-      };
+      // Atualizar estado local
+      setSugestoes(prev => prev.map(s => {
+        if (s.id === sugestaoId) {
+          return {
+            ...s,
+            comentarios: [...(s.comentarios || []), comentario]
+          };
+        }
+        return s;
+      }));
       
-      setSugestoes(prev => prev.map(s => s.id === sugestaoId ? updatedSugestao : s));
-      return newComentario;
+      return comentario;
     } catch (err: any) {
       setError(err.message || 'Erro ao adicionar comentário');
       throw err;
@@ -341,124 +598,98 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
     }
   };
 
-  // Filtrar sugestões com base nos critérios fornecidos
+  // Filtrar sugestões
   const filtrarSugestoes = (filtro: FiltroSugestao): Sugestao[] => {
-    let sugestoesFiltradas = [...sugestoes];
+    let resultado = [...sugestoes];
     
-    if (filtro.status && filtro.status.length > 0) {
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => filtro.status?.includes(s.status));
+    if (filtro.id) {
+      resultado = resultado.filter(s => s.id === filtro.id);
     }
-    
-    if (filtro.urgencia && filtro.urgencia.length > 0) {
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => filtro.urgencia?.includes(s.urgencia));
+    if (filtro.ean) {
+      resultado = resultado.filter(s => s.ean.includes(filtro.ean!));
     }
-    
-    if (filtro.fornecedor) {
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => 
-        s.fornecedor.toLowerCase().includes(filtro.fornecedor!.toLowerCase())
-      );
-    }
-    
     if (filtro.nomeProduto) {
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => 
-        s.nomeProduto.toLowerCase().includes(filtro.nomeProduto!.toLowerCase())
-      );
+      resultado = resultado.filter(s => s.nomeProduto.toLowerCase().includes(filtro.nomeProduto!.toLowerCase()));
     }
-    
-    if (filtro.cliente) {
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => 
-        s.cliente.toLowerCase().includes(filtro.cliente!.toLowerCase())
-      );
+    if (filtro.status) {
+      resultado = resultado.filter(s => s.status === filtro.status);
     }
-    
+    if (filtro.urgencia) {
+      resultado = resultado.filter(s => s.urgencia === filtro.urgencia);
+    }
     if (filtro.dataInicio) {
       const dataInicio = new Date(filtro.dataInicio);
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => new Date(s.data) >= dataInicio);
+      resultado = resultado.filter(s => new Date(s.dataCriacao) >= dataInicio);
     }
-    
     if (filtro.dataFim) {
       const dataFim = new Date(filtro.dataFim);
       dataFim.setHours(23, 59, 59, 999); // Fim do dia
-      sugestoesFiltradas = sugestoesFiltradas.filter(s => new Date(s.data) <= dataFim);
+      resultado = resultado.filter(s => new Date(s.dataCriacao) <= dataFim);
     }
     
-    return sugestoesFiltradas;
+    return resultado;
   };
 
-  // Exportar sugestões filtradas para CSV
+  // Exportar sugestões para CSV
   const exportarSugestoes = async (filtro: FiltroSugestao): Promise<string> => {
     const sugestoesFiltradas = filtrarSugestoes(filtro);
     
-    // Cabeçalhos do CSV
-    const headers = [
-      'ID', 
-      'Data', 
-      'EAN', 
-      'Nome do Produto', 
-      'Fornecedor', 
-      'Cliente', 
-      'Telefone', 
-      'Urgência', 
-      'Status', 
-      'Observação',
-      'Data de Criação',
-      'Data do Pedido',
-      'Data de Chegada'
-    ];
+    if (sugestoesFiltradas.length === 0) {
+      throw new Error('Nenhuma sugestão encontrada para exportar');
+    }
     
-    // Função auxiliar para formatar datas
-    const formatDate = (dateStr?: string) => {
-      if (!dateStr) return '';
-      const date = new Date(dateStr);
-      return date.toLocaleDateString('pt-BR');
-    };
+    // Cabeçalho do CSV
+    let csv = 'ID,EAN,Produto,Fornecedor,Cliente,Telefone,Urgência,Status,Observação,Data de Criação,Última Atualização\n';
     
-    // Função para escapar campos CSV
-    const escapeCsv = (field: string) => {
-      if (field === null || field === undefined) return '';
-      return `"${String(field).replace(/"/g, '""')}"`;
-    };
-    
-    // Converter sugestões para linhas CSV
-    const rows = sugestoesFiltradas.map(s => [
-      s.id,
-      formatDate(s.data),
-      s.ean,
-      s.nomeProduto,
-      s.fornecedor,
-      s.cliente,
-      s.telefoneCliente,
-      s.urgencia,
-      s.status,
-      s.observacao || '',
-      formatDate(s.dataCriacao),
-      formatDate(s.dataPedidoRealizado),
-      formatDate(s.dataProdutoChegou)
-    ].map(escapeCsv).join(','));
-    
-    // Combinar cabeçalhos e linhas
-    const csv = [headers.join(','), ...rows].join('\n');
+    // Adicionar linhas
+    sugestoesFiltradas.forEach(s => {
+      csv += `${escapeCsv(s.id)},`;
+      csv += `${escapeCsv(s.ean)},`;
+      csv += `${escapeCsv(s.nomeProduto)},`;
+      csv += `${escapeCsv(s.fornecedor || '')},`;
+      csv += `${escapeCsv(s.cliente || '')},`;
+      csv += `${escapeCsv(s.telefoneCliente || '')},`;
+      csv += `${escapeCsv(s.urgencia)},`;
+      csv += `${escapeCsv(s.status)},`;
+      csv += `${escapeCsv(s.observacao || '')},`;
+      csv += `${escapeCsv(formatDate(s.dataCriacao))},`;
+      csv += `${escapeCsv(formatDate(s.dataAtualizacao))}\n`;
+    });
     
     return csv;
   };
+  
+  // Funções auxiliares para exportação
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR');
+  };
+  
+  const escapeCsv = (field: string) => {
+    if (!field) return '';
+    // Escapar aspas e envolver em aspas se tiver vírgula
+    const escaped = String(field).replace(/"/g, '""');
+    return escaped.includes(',') || escaped.includes('\n') || escaped.includes('"') 
+      ? `"${escaped}"` 
+      : escaped;
+  };
 
   return (
-    <SugestoesContext.Provider
-      value={{
-        sugestoes,
-        loading,
-        error,
-        getSugestao,
-        createSugestao,
-        updateSugestao,
-        deleteSugestao,
-        addComentario,
-        filtrarSugestoes,
-        exportarSugestoes,
-        avancarStatus,
-        updateStatusMultiple
-      }}
-    >
+    <SugestoesContext.Provider value={{
+      sugestoes,
+      loading,
+      error,
+      getSugestao,
+      createSugestao,
+      updateSugestao,
+      deleteSugestao,
+      addComentario,
+      filtrarSugestoes,
+      exportarSugestoes,
+      avancarStatus,
+      updateStatusMultiple
+    }}>
       {children}
     </SugestoesContext.Provider>
   );

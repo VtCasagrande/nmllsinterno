@@ -1,18 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, User, Bell, Menu, AlertCircle } from 'lucide-react';
+import { Search, User, Bell, Menu, AlertCircle, Plus, ChevronRight } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { AppIcon } from '@/components/AppIcon';
 import { AppCategory } from '@/components/AppCategory';
+import AppMenu from '@/components/AppMenu';
 import { 
   appModules, 
   appCategories, 
   getModulesByCategory, 
-  filterModulesByRole 
+  filterModulesByRole,
+  getModuleActions,
+  getModuleById
 } from '@/utils/appRegistry';
+import Link from 'next/link';
 
 export default function DashboardPage() {
   const { profile } = useAuth();
@@ -20,11 +24,13 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredModules, setFilteredModules] = useState(appModules);
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
   
   // Tentar usar o contexto de favoritos com tratamento de erro
   let favorites: string[] = [];
   let toggleFavorite: (id: string) => void = () => {};
   let isFavorite: (id: string) => boolean = () => false;
+  let favoritesLoading = false;
   
   try {
     // Importação dinâmica do contexto de favoritos para evitar erros de renderização
@@ -33,6 +39,7 @@ export default function DashboardPage() {
     favorites = favoritesContext.favorites || [];
     toggleFavorite = favoritesContext.toggleFavorite || (() => {});
     isFavorite = favoritesContext.isFavorite || (() => false);
+    favoritesLoading = favoritesContext.isLoading || false;
   } catch (err) {
     console.error('Erro ao carregar contexto de favoritos:', err);
     setError('Não foi possível carregar os favoritos. Tente recarregar a página.');
@@ -89,6 +96,20 @@ export default function DashboardPage() {
       setError('Não foi possível atualizar os favoritos.');
     }
   };
+  
+  // Função para mostrar o menu de um módulo
+  const handleShowMenu = (moduleId: string) => () => {
+    setSelectedModule(moduleId);
+  };
+  
+  // Função para fechar o menu
+  const handleCloseMenu = () => {
+    setSelectedModule(null);
+  };
+  
+  // Obter o módulo selecionado e suas ações
+  const selectedModuleData = selectedModule ? getModuleById(selectedModule) : null;
+  const selectedModuleActions = selectedModuleData?.actions || [];
 
   // Renderiza a versão antiga do dashboard em caso de erro
   if (error) {
@@ -126,26 +147,7 @@ export default function DashboardPage() {
 
   return (
     <ProtectedRoute>
-      <div className="container mx-auto pb-16">
-        {/* Cabeçalho */}
-        <header className="flex justify-between items-center py-4 px-4 md:px-0">
-          <div className="flex items-center">
-            <Menu className="md:hidden w-5 h-5 mr-3" />
-            <h1 className="text-2xl font-bold">Dashboard</h1>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="relative">
-              <Bell className="w-5 h-5 text-gray-600" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
-                3
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
-              <User className="w-5 h-5" />
-            </div>
-          </div>
-        </header>
-
+      <div className="container mx-auto pb-16 pt-4">
         {/* Barra de pesquisa */}
         <div className="px-4 md:px-0 mb-6">
           <div className="relative">
@@ -162,17 +164,27 @@ export default function DashboardPage() {
         
         {/* Favoritos */}
         {userFavorites.length > 0 && !searchTerm && (
-          <AppCategory title="Favoritos" className="mb-8">
+          <AppCategory title={
+            <div className="flex items-center">
+              <span>Favoritos</span>
+              {favoritesLoading && (
+                <div className="ml-2 w-4 h-4 rounded-full border-2 border-t-transparent border-blue-500 animate-spin"></div>
+              )}
+            </div>
+          } className="mb-8">
             {userFavorites.map((app) => (
-              <AppIcon
-                key={app.id}
-                href={app.href}
-                icon={app.icon}
-                label={app.name}
-                color={app.color}
-                isFavorite={isFavorite(app.id)}
-                onToggleFavorite={handleToggleFavorite(app.id)}
-              />
+              <div key={app.id} className="flex flex-col">
+                <AppIcon
+                  key={app.id}
+                  href={app.href}
+                  icon={app.icon}
+                  label={app.name}
+                  color={app.color}
+                  isFavorite={isFavorite(app.id)}
+                  onToggleFavorite={handleToggleFavorite(app.id)}
+                  showMenu={app.actions && app.actions.length > 0 ? handleShowMenu(app.id) : undefined}
+                />
+              </div>
             ))}
           </AppCategory>
         )}
@@ -182,15 +194,18 @@ export default function DashboardPage() {
           <AppCategory title="Resultados da Pesquisa">
             {filteredModules.length > 0 ? (
               filterModulesByRole(filteredModules, profile?.role).map((app) => (
-                <AppIcon
-                  key={app.id}
-                  href={app.href}
-                  icon={app.icon}
-                  label={app.name}
-                  color={app.color}
-                  isFavorite={isFavorite(app.id)}
-                  onToggleFavorite={handleToggleFavorite(app.id)}
-                />
+                <div key={app.id} className="flex flex-col">
+                  <AppIcon
+                    key={app.id}
+                    href={app.href}
+                    icon={app.icon}
+                    label={app.name}
+                    color={app.color}
+                    isFavorite={isFavorite(app.id)}
+                    onToggleFavorite={handleToggleFavorite(app.id)}
+                    showMenu={app.actions && app.actions.length > 0 ? handleShowMenu(app.id) : undefined}
+                  />
+                </div>
               ))
             ) : (
               <div className="col-span-full py-4 text-center text-gray-500">
@@ -208,19 +223,34 @@ export default function DashboardPage() {
           return (
             <AppCategory key={category.id} title={category.name}>
               {categoryModules.map((app) => (
-                <AppIcon
-                  key={app.id}
-                  href={app.href}
-                  icon={app.icon}
-                  label={app.name}
-                  color={app.color}
-                  isFavorite={isFavorite(app.id)}
-                  onToggleFavorite={handleToggleFavorite(app.id)}
-                />
+                <div key={app.id} className="flex flex-col relative">
+                  <AppIcon
+                    key={app.id}
+                    href={app.href}
+                    icon={app.icon}
+                    label={app.name}
+                    color={app.color}
+                    isFavorite={isFavorite(app.id)}
+                    onToggleFavorite={handleToggleFavorite(app.id)}
+                    showMenu={app.actions && app.actions.length > 0 ? handleShowMenu(app.id) : undefined}
+                  />
+                </div>
               ))}
             </AppCategory>
           );
         })}
+        
+        {/* Menu popup para ações do módulo */}
+        {selectedModuleData && (
+          <AppMenu
+            isOpen={!!selectedModule}
+            onClose={handleCloseMenu}
+            title={selectedModuleData.name}
+            moduleId={selectedModuleData.id}
+            actions={selectedModuleActions}
+            mainHref={selectedModuleData.href}
+          />
+        )}
       </div>
     </ProtectedRoute>
   );
