@@ -199,7 +199,10 @@ export default function AppMenu({ isOpen, onClose, title, moduleId, actions, mai
                   onClick={onClose}
                 >
                   <div className={`p-2.5 rounded-md mr-4 ${iconColor} shadow-md flex items-center justify-center`}>
-                    <ActionIcon size={20} className="text-white" strokeWidth={2.5} />
+                    <div className="text-white w-5 h-5">
+                      {/* @ts-ignore */}
+                      <ActionIcon />
+                    </div>
                   </div>
                   <div className="flex-1">
                     <div className="font-medium text-gray-800">{action.name}</div>

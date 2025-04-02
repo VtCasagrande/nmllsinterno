@@ -64,6 +64,7 @@ export interface ComentarioInput {
 }
 
 export interface FiltroSugestao {
+  id?: string;
   status?: StatusSugestao[];
   urgencia?: UrgenciaSugestao[];
   fornecedor?: string;
@@ -71,4 +72,5 @@ export interface FiltroSugestao {
   dataFim?: string;
   nomeProduto?: string;
   cliente?: string;
+  ean?: string;
 } 

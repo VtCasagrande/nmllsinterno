@@ -55,14 +55,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 export default function DetalheTrocaPage({ params }: { params: { id: string } }) {
   const { id } = params;
   const { getTrocaById, updateTrocaStatus, addComentario, deleteTroca, error: contextError } = useTrocas();
-  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   
   const [troca, setTroca] = useState<Troca | null>(null);
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [enviandoComentario, setEnviandoComentario] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [confirmAction, setConfirmAction] = useState<() => Promise<void>>(() => async () => {});
   const [confirmMessage, setConfirmMessage] = useState('');
@@ -171,11 +171,11 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
 
   // Adicionar comentário à troca
   const handleAddComentario = async () => {
-    if (!troca || !comentarioTexto.trim()) return;
+    if (!troca || !comentarioTexto.trim() || !profile) return;
     
     setEnviandoComentario(true);
     try {
-      const success = await addComentario(troca.id, comentarioTexto);
+      const success = await addComentario(troca.id, { texto: comentarioTexto });
       if (success) {
         // Recarregar troca para obter o comentário adicionado
         const trocaAtualizada = await getTrocaById(troca.id);
@@ -474,13 +474,13 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
                       <div className="flex items-center mb-2">
                         <Avatar className="h-8 w-8 mr-2">
                           <AvatarFallback>
-                            {comentario.autor.substring(0, 2).toUpperCase()}
+                            {comentario.usuarioNome.substring(0, 2).toUpperCase()}
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <p className="font-medium text-sm">{comentario.autor}</p>
+                          <p className="font-medium text-sm">{comentario.usuarioNome}</p>
                           <p className="text-xs text-gray-500">
-                            {format(new Date(comentario.data), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
+                            {format(new Date(comentario.dataCriacao), 'dd/MM/yyyy HH:mm', { locale: ptBR })}
                           </p>
                         </div>
                       </div>

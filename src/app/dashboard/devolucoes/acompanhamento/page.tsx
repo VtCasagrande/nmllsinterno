@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Devolucao, devolucoesService, DevolucaoFiltro } from '@/services/devolucoesService';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
@@ -56,7 +56,7 @@ interface ModalDetalhesProps {
 function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalDetalhesProps) {
   if (!devolucao) return null;
   
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -136,7 +136,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setStatusAtual(e.target.value);
+    setStatusAtual(e.target.value as 'pendente' | 'em_analise' | 'finalizado' | 'cancelado');
     // Limpar erros quando mudar o status
     setErrors({});
   };
@@ -176,23 +176,23 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleSubmitAnalise = async () => {
-    if (!validarFormularioAnalise() || !user) return;
+    if (!validarFormularioAnalise() || !profile) return;
     
     setLoading(true);
     
     try {
       // Atualizar status para em_analise
-      await devolucoesService.atualizarStatus(devolucao.id, 'em_analise', user.id);
+      await devolucoesService.atualizarStatus(devolucao.id, 'em_analise', profile.id);
       
       // Atualizar produtos
-      await devolucoesService.updateItens(devolucao.id, produtos, user.id);
+      await devolucoesService.updateItens(devolucao.id, produtos, profile.id);
       
       // Adicionar comentário
       if (descricao !== devolucao.observacoes) {
         await devolucoesService.addComentario(
           devolucao.id, 
           `Atualização da descrição: ${descricao}`, 
-          user.id
+          profile.id
         );
       }
       
@@ -217,7 +217,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleSubmitFinalizado = async () => {
-    if (!validarFormularioFinalizado() || !user) return;
+    if (!validarFormularioFinalizado() || !profile) return;
     
     setLoading(true);
     
@@ -229,11 +229,11 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
           pedido_tiny: pedidoTiny,
           nota_fiscal: notaFiscal,
         },
-        user.id
+        profile.id
       );
       
       // Finalizar devolução
-      await devolucoesService.atualizarStatus(devolucao.id, 'finalizado', user.id);
+      await devolucoesService.atualizarStatus(devolucao.id, 'finalizado', profile.id);
       
       toast({
         title: "Sucesso",
@@ -256,7 +256,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const adicionarComentario = async () => {
-    if (!novoComentario.trim() || !user) {
+    if (!novoComentario.trim() || !profile) {
       setErrors(prev => ({
         ...prev,
         comentario: 'O comentário não pode estar vazio'
@@ -267,17 +267,23 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
     setLoading(true);
     
     try {
-      await devolucoesService.addComentario(devolucao.id, novoComentario, user.id);
+      await devolucoesService.addComentario(
+        devolucao.id,
+        novoComentario,
+        profile.id
+      );
+      
+      // Limpar o comentário e fechar o formulário
+      setNovoComentario('');
+      setMostrarFormComentario(false);
+      
+      // Atualizar a lista
+      onRefresh();
       
       toast({
         title: "Sucesso",
         description: "Comentário adicionado com sucesso",
-        variant: "success"
       });
-      
-      setNovoComentario('');
-      setMostrarFormComentario(false);
-      onRefresh();
     } catch (error) {
       console.error('Erro ao adicionar comentário:', error);
       toast({
@@ -288,42 +294,102 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
     } finally {
       setLoading(false);
     }
-    
-    // Limpar erro
-    if (errors.comentario) {
-      setErrors(prev => {
-        const newErrors = { ...prev };
-        delete newErrors.comentario;
-        return newErrors;
-      });
-    }
   };
 
-  const confirmarAcao = (acao: 'finalizar' | 'cancelar') => {
+  const iniciarAnalise = async () => {
+    if (!profile) return;
+    
+    setLoading(true);
+    
+    try {
+      // Atualizar status para em_analise
+      await devolucoesService.atualizarStatus(
+        devolucao.id, 
+        'em_analise', 
+        profile.id
+      );
+      
+      // Atualizar dados do responsável pela análise
+      await devolucoesService.updateDevolucao(
+        devolucao.id,
+        { atribuido_id: profile.id },
+        profile.id
+      );
+      
+      // Atualizar UI
+      setStatusAtual('em_analise');
+      setResponsavelAnalise(profile.name);
+      
+      toast({
+        title: "Sucesso",
+        description: "Devolução movida para análise",
+      });
+      
+      onRefresh();
+    } catch (error) {
+      console.error('Erro ao iniciar análise:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao iniciar a análise",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const solicitarConfirmacao = (acao: 'finalizar' | 'cancelar') => {
     setAcaoConfirmacao(acao);
     setMostrarConfirmacao(true);
   };
-
-  const executarAcaoConfirmada = async () => {
-    if (!user) return;
+  
+  const confirmarAcao = async () => {
+    if (!acaoConfirmacao || !profile) return;
     
     setLoading(true);
     
     try {
       if (acaoConfirmacao === 'finalizar') {
-        await handleSubmitFinalizado();
-      } else if (acaoConfirmacao === 'cancelar') {
-        await devolucoesService.atualizarStatus(devolucao.id, 'cancelado', user.id);
-        toast({
-          title: "Sucesso",
-          description: "Devolução cancelada com sucesso",
-          variant: "success"
-        });
-        onRefresh();
-        onClose();
+        if (!validarFormularioFinalizado()) {
+          setMostrarConfirmacao(false);
+          setLoading(false);
+          return;
+        }
+        
+        await devolucoesService.updateDevolucao(
+          devolucao.id, 
+          {
+            pedido_tiny: pedidoTiny,
+            nota_fiscal: notaFiscal,
+          },
+          profile.id
+        );
+        
+        await devolucoesService.atualizarStatus(
+          devolucao.id, 
+          'finalizado', 
+          profile.id
+        );
+      } else {
+        await devolucoesService.atualizarStatus(
+          devolucao.id, 
+          'cancelado', 
+          profile.id
+        );
       }
+      
+      toast({
+        title: "Sucesso",
+        description: acaoConfirmacao === 'finalizar' 
+          ? "Devolução finalizada com sucesso" 
+          : "Devolução cancelada com sucesso",
+      });
+      
+      setMostrarConfirmacao(false);
+      onRefresh();
+      onClose();
     } catch (error) {
-      console.error('Erro ao executar ação:', error);
+      console.error(`Erro ao ${acaoConfirmacao} devolução:`, error);
       toast({
         title: "Erro",
         description: `Ocorreu um erro ao ${acaoConfirmacao === 'finalizar' ? 'finalizar' : 'cancelar'} a devolução`,
@@ -331,19 +397,17 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
       });
     } finally {
       setLoading(false);
-      setMostrarConfirmacao(false);
-      setAcaoConfirmacao(null);
     }
   };
   
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0] || !user) return;
+    if (!e.target.files || !e.target.files[0] || !profile) return;
     
     const file = e.target.files[0];
     setUploadLoading(true);
     
     try {
-      const imageUrl = await devolucoesService.addFoto(devolucao.id, file, user.id);
+      const imageUrl = await devolucoesService.addFoto(devolucao.id, file, profile.id);
       
       if (imageUrl) {
         setFotos(prev => [...prev, imageUrl]);
@@ -370,7 +434,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleDeleteImage = async (url: string) => {
-    if (!user) return;
+    if (!profile) return;
     
     try {
       const success = await devolucoesService.deleteFoto(url);
@@ -408,7 +472,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
               </label>
               <select
                 value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
+                onChange={(e) => setMotivo(e.target.value as 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro')}
                 className={`w-full px-3 py-2 border rounded-md ${
                   errors.motivo ? 'border-red-500' : 'border-gray-300'
                 } focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -633,7 +697,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
           
           <div className="flex justify-end">
             <button
-              onClick={() => confirmarAcao('finalizar')}
+              onClick={() => solicitarConfirmacao('finalizar')}
               className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
             >
               Finalizar
@@ -665,7 +729,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
               <p className="text-sm text-gray-500">Código</p>
               <p className="font-medium">{devolucao.codigo}</p>
             </div>
-            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && devolucao.produtos.length > 0 && (
+            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && (devolucao.produtos || []).length > 0 && (
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-500">Produtos</p>
                 <table className="min-w-full divide-y divide-gray-200 mt-2">
@@ -683,7 +747,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {devolucao.produtos.map(produto => (
+                    {(devolucao.produtos || []).map(produto => (
                       <tr key={produto.id}>
                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                           {produto.codigo}
@@ -763,9 +827,13 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                 <div>
                   <p className="text-sm text-gray-500">Data de Finalização</p>
                   <p className="font-medium">
-                    {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} 
-                    {' '}
-                    {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                    <span className="text-xs text-gray-500">
+                      {devolucao.data_finalizacao ? (
+                        <>
+                          {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                        </>
+                      ) : 'Data não registrada'}
+                    </span>
                   </p>
                 </div>
               </>
@@ -788,9 +856,9 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
           {renderizarFormularioStatus()}
           
           <div>
-            <p className="text-sm text-gray-500 mb-2">Fotos do Produto ({devolucao.fotos.length})</p>
+            <p className="text-sm text-gray-500 mb-2">Fotos do Produto ({(devolucao.fotos || []).length})</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {devolucao.fotos.map((foto, index) => (
+              {(devolucao.fotos || []).map((foto, index) => (
                 <div key={index} className="aspect-square w-full rounded-md overflow-hidden border border-gray-300">
                   <div className="relative h-full w-full bg-gray-100 flex items-center justify-center">
                     {/* Em um ambiente real, usaríamos a URL real da imagem */}
@@ -880,7 +948,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">
-                      Movido para análise. {devolucao.produtos.length > 0 && <span>Produto: {devolucao.produtos[0].nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
+                      Movido para análise. {(devolucao.produtos || []).length > 0 && <span>Produto: {(devolucao.produtos || [])[0].nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
                     </p>
                   </div>
                 </div>
@@ -895,7 +963,11 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                     <div className="flex justify-between items-center">
                       <p className="font-medium">Sistema</p>
                       <span className="text-xs text-gray-500">
-                        {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                        {devolucao.data_finalizacao ? (
+                          <>
+                            {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                          </>
+                        ) : 'Data não registrada'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">
@@ -911,7 +983,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
         <div className="p-4 border-t flex justify-end gap-2">
           {devolucao.status !== 'cancelado' && devolucao.status !== 'finalizado' && (
             <button
-              onClick={() => confirmarAcao('cancelar')}
+              onClick={() => solicitarConfirmacao('cancelar')}
               className="px-4 py-2 border border-red-300 text-red-700 rounded-md hover:bg-red-50"
             >
               Cancelar Devolução
@@ -946,7 +1018,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                 Voltar
               </button>
               <button
-                onClick={executarAcaoConfirmada}
+                onClick={confirmarAcao}
                 className={`px-4 py-2 rounded-md text-white ${
                   acaoConfirmacao === 'finalizar' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'
                 }`}
@@ -963,7 +1035,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
 
 export default function AcompanhamentoDevolucaoPage() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -1010,12 +1082,48 @@ export default function AcompanhamentoDevolucaoPage() {
 
   // Carregar devoluções quando o componente montar ou o filtro de status mudar
   useEffect(() => {
-    if (user) {
+    if (profile) {
       carregarDevolucoes();
     }
-  }, [user, statusFilter]);
+  }, [profile, statusFilter]);
 
-  if (!user) {
+  const abrirDetalhes = async (devolucaoId: string) => {
+    try {
+      setLoading(true);
+      const devolucaoData = await devolucoesService.getDevolucaoById(devolucaoId);
+      if (devolucaoData) {
+        setDetalheDevolucao(devolucaoData);
+      } else {
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os detalhes da devolução",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes da devolução:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao carregar os detalhes da devolução",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateStatus = (devolucaoId: string, novoStatus: string) => {
+    // Atualiza o status localmente sem recarregar todos os dados
+    setDevolucoes(prev => 
+      prev.map(d => 
+        d.id === devolucaoId 
+          ? { ...d, status: novoStatus as any } 
+          : d
+      )
+    );
+  };
+
+  if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Você precisa estar logado para acessar esta página.</p>

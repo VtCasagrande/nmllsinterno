@@ -141,9 +141,9 @@ export const devolucoesService = {
         status: d.status,
         data: d.data_recebimento,
         responsavel_id: d.responsavel_id,
-        responsavel: d.responsavel?.name || 'Não atribuído',
-        responsavel_recebimento: d.responsavel?.name || 'Não atribuído',
-        responsavel_analise: d.atribuido?.name,
+        responsavel: d.responsavel?.[0]?.name || 'Não atribuído',
+        responsavel_recebimento: d.responsavel?.[0]?.name || 'Não atribuído',
+        responsavel_analise: d.atribuido?.[0]?.name,
         observacoes: d.descricao,
         fotos: d.devolucoes_fotos?.map(f => f.url) || [],
         data_finalizacao: d.updated_at,
@@ -158,7 +158,7 @@ export const devolucoesService = {
         comentarios: d.devolucoes_comentarios?.map(c => ({
           id: c.id,
           texto: c.comentario,
-          autor: c.profiles?.name || 'Usuário',
+          autor: c.profiles?.[0]?.name || 'Usuário',
           usuario_id: c.usuario_id,
           data: c.created_at
         })) || []
@@ -212,9 +212,9 @@ export const devolucoesService = {
         status: data.status,
         data: data.data_recebimento,
         responsavel_id: data.responsavel_id,
-        responsavel: data.responsavel?.name || 'Não atribuído',
-        responsavel_recebimento: data.responsavel?.name || 'Não atribuído',
-        responsavel_analise: data.atribuido?.name,
+        responsavel: data.responsavel?.[0]?.name || 'Não atribuído',
+        responsavel_recebimento: data.responsavel?.[0]?.name || 'Não atribuído',
+        responsavel_analise: data.atribuido?.[0]?.name,
         observacoes: data.descricao,
         fotos: data.devolucoes_fotos?.map(f => f.url) || [],
         data_finalizacao: data.updated_at,
@@ -229,7 +229,7 @@ export const devolucoesService = {
         comentarios: data.devolucoes_comentarios?.map(c => ({
           id: c.id,
           texto: c.comentario,
-          autor: c.profiles?.name || 'Usuário',
+          autor: c.profiles?.[0]?.name || 'Usuário',
           usuario_id: c.usuario_id,
           data: c.created_at
         })) || []
@@ -608,7 +608,7 @@ export const devolucoesService = {
       }
 
       // Extrair o caminho do arquivo a partir da URL
-      const storageUrl = supabase.supabaseUrl + '/storage/v1/object/public/devolucoes/';
+      const storageUrl = process.env.NEXT_PUBLIC_SUPABASE_URL + '/storage/v1/object/public/devolucoes/';
       const filePath = fotoUrl.replace(storageUrl, '');
 
       // Excluir o arquivo do storage

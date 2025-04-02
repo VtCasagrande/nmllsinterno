@@ -97,6 +97,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
         // Transformar dados do Supabase para o formato da aplicação
         const formattedSugestoes: Sugestao[] = data.map(item => ({
           id: item.id,
+          data: item.created_at,
           ean: item.ean,
           nomeProduto: item.nome_produto,
           fornecedor: item.fornecedor || '',
@@ -111,7 +112,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
           comentarios: item.sugestoes_comentarios?.map(c => ({
             id: c.id,
             usuarioId: c.usuario_id,
-            usuarioNome: c.profiles?.name || 'Usuário',
+            usuarioNome: c.profiles && c.profiles[0]?.name || 'Usuário',
             texto: c.texto,
             dataCriacao: c.created_at
           })) || []
@@ -190,6 +191,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
         // Transformar dados do Supabase para o formato da aplicação
         const formattedSugestoes: Sugestao[] = data.map(item => ({
           id: item.id,
+          data: item.created_at,
           ean: item.ean,
           nomeProduto: item.nome_produto,
           fornecedor: item.fornecedor || '',
@@ -204,7 +206,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
           comentarios: item.sugestoes_comentarios?.map(c => ({
             id: c.id,
             usuarioId: c.usuario_id,
-            usuarioNome: c.profiles?.name || 'Usuário',
+            usuarioNome: c.profiles && c.profiles[0]?.name || 'Usuário',
             texto: c.texto,
             dataCriacao: c.created_at
           })) || []
@@ -342,6 +344,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
       // Transformar resposta para o formato da aplicação
       const updatedSugestao: Sugestao = {
         id: updatedData.id,
+        data: updatedData.created_at,
         ean: updatedData.ean,
         nomeProduto: updatedData.nome_produto,
         fornecedor: updatedData.fornecedor || '',
@@ -356,7 +359,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
         comentarios: updatedData.sugestoes_comentarios?.map(c => ({
           id: c.id,
           usuarioId: c.usuario_id,
-          usuarioNome: c.profiles?.name || 'Usuário',
+          usuarioNome: c.profiles && c.profiles[0]?.name || 'Usuário',
           texto: c.texto,
           dataCriacao: c.created_at
         })) || []
@@ -457,6 +460,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
       // Formatar para o modelo da aplicação
       const newSugestao: Sugestao = {
         id: newData.id,
+        data: newData.created_at,
         ean: newData.ean,
         nomeProduto: newData.nome_produto,
         fornecedor: newData.fornecedor || '',
@@ -573,7 +577,7 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
       const comentario: Comentario = {
         id: newComentario.id,
         usuarioId: newComentario.usuario_id,
-        usuarioNome: newComentario.profiles?.name || profile.name || 'Usuário',
+        usuarioNome: newComentario.profiles && newComentario.profiles[0]?.name || profile.name || 'Usuário',
         texto: newComentario.texto,
         dataCriacao: newComentario.created_at
       };
@@ -612,10 +616,10 @@ export const SugestoesProvider: React.FC<SugestoesProviderProps> = ({ children }
       resultado = resultado.filter(s => s.nomeProduto.toLowerCase().includes(filtro.nomeProduto!.toLowerCase()));
     }
     if (filtro.status) {
-      resultado = resultado.filter(s => s.status === filtro.status);
+      resultado = resultado.filter(s => filtro.status?.includes(s.status));
     }
     if (filtro.urgencia) {
-      resultado = resultado.filter(s => s.urgencia === filtro.urgencia);
+      resultado = resultado.filter(s => filtro.urgencia?.includes(s.urgencia));
     }
     if (filtro.dataInicio) {
       const dataInicio = new Date(filtro.dataInicio);

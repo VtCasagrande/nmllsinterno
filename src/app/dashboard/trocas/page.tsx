@@ -59,7 +59,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function TrocasPage() {
   const { trocas, getTrocas, updateTrocaStatus, loading, error, filtros, setFiltros } = useTrocas();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -363,7 +363,7 @@ export default function TrocasPage() {
       {/* Navegação rápida por tipo */}
       <div className="flex mb-6 space-x-4">
         <button
-          onClick={() => setFiltros(prev => ({ ...prev, tipo: undefined }))}
+          onClick={() => setFiltros({ ...filtros, tipo: undefined })}
           className={`px-4 py-2 rounded-md transition-colors ${
             !filtros.tipo 
               ? 'bg-blue-600 text-white' 
@@ -373,7 +373,7 @@ export default function TrocasPage() {
           Todas
         </button>
         <button
-          onClick={() => setFiltros(prev => ({ ...prev, tipo: TrocaTipo.ENVIADA }))}
+          onClick={() => setFiltros({ ...filtros, tipo: TrocaTipo.ENVIADA })}
           className={`px-4 py-2 rounded-md transition-colors ${
             filtros.tipo === TrocaTipo.ENVIADA 
               ? 'bg-blue-600 text-white' 
@@ -383,7 +383,7 @@ export default function TrocasPage() {
           Enviadas
         </button>
         <button
-          onClick={() => setFiltros(prev => ({ ...prev, tipo: TrocaTipo.RECEBIDA }))}
+          onClick={() => setFiltros({ ...filtros, tipo: TrocaTipo.RECEBIDA })}
           className={`px-4 py-2 rounded-md transition-colors ${
             filtros.tipo === TrocaTipo.RECEBIDA 
               ? 'bg-blue-600 text-white' 
@@ -442,11 +442,10 @@ export default function TrocasPage() {
               <Select 
                 value={filtros.status || ''} 
                 onValueChange={(value) => 
-                  setFiltros(prev => ({ 
-                    ...prev, 
+                  setFiltros({ 
+                    ...filtros, 
                     status: value ? value as TrocaStatus : undefined 
-                  }))
-                }
+                  })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Todos os status" />
@@ -468,11 +467,10 @@ export default function TrocasPage() {
                 placeholder="Digite o nome da loja"
                 value={filtros.lojaParceira || ''}
                 onChange={(e) => 
-                  setFiltros(prev => ({ 
-                    ...prev, 
+                  setFiltros({ 
+                    ...filtros, 
                     lojaParceira: e.target.value || undefined 
-                  }))
-                }
+                  })}
               />
             </div>
             <div className="md:col-span-1">

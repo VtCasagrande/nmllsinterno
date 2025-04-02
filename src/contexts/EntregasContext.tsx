@@ -122,16 +122,16 @@ export const EntregasProvider: React.FC<EntregasProviderProps> = ({ children }) 
         // Construir objeto Entrega com dados da rota
         return {
           id: rota.id,
-          numeroPedido: rota.codigo || rota.numero_pedido || rota.id.substring(0, 8),
+          numeroPedido: rota.codigo || rota.id.substring(0, 8),
           dataCriacao: rota.created_at || new Date().toISOString(),
           dataEntrega: rota.data_entrega,
           status: mapearStatus(rota.status),
-          nomeCliente: rota.nome_cliente || 'Cliente não informado',
-          telefoneCliente: rota.telefone_cliente || '',
-          endereco: rota.endereco || '',
-          cidade: rota.cidade || '',
-          cep: rota.cep || '',
-          complemento: rota.complemento,
+          nomeCliente: 'Cliente',  // Temporário
+          telefoneCliente: '',  // Temporário 
+          endereco: rota.destino || '', 
+          cidade: '',  // Temporário
+          cep: '',  // Temporário 
+          complemento: undefined,  // Temporário
           motoristaId: rota.motorista_id || undefined,
           motoristaNome: rota.motorista?.nome || undefined,
           rotaId: undefined, // Não temos conceito de rota agrupada ainda
@@ -139,7 +139,7 @@ export const EntregasProvider: React.FC<EntregasProviderProps> = ({ children }) 
           pagamento,
           itens,
           formaEnvio: 'entrega',
-          observacoes: rota.observacoes
+          observacoes: rota.observacoes || undefined
         };
       });
       
@@ -244,16 +244,16 @@ export const EntregasProvider: React.FC<EntregasProviderProps> = ({ children }) 
       // Construir e retornar a entrega formatada a partir da rota criada
       const novaEntrega: Entrega = {
         id: rotaCriada.id,
-        numeroPedido: rotaCriada.codigo || rotaCriada.numero_pedido || rotaCriada.id.substring(0, 8),
+        numeroPedido: rotaCriada.codigo || rotaCriada.id.substring(0, 8),
         dataCriacao: rotaCriada.created_at || new Date().toISOString(),
         dataEntrega: rotaCriada.data_entrega,
         status: mapearStatus(rotaCriada.status),
-        nomeCliente: rotaCriada.nome_cliente || 'Cliente não informado',
-        telefoneCliente: rotaCriada.telefone_cliente || '',
-        endereco: rotaCriada.endereco || '',
-        cidade: rotaCriada.cidade || '',
-        cep: rotaCriada.cep || '',
-        complemento: rotaCriada.complemento,
+        nomeCliente: entrega.nomeCliente,
+        telefoneCliente: entrega.telefoneCliente,
+        endereco: entrega.endereco,
+        cidade: entrega.cidade,
+        cep: entrega.cep,
+        complemento: entrega.complemento,
         motoristaId: rotaCriada.motorista_id || undefined,
         motoristaNome: rotaCriada.motorista?.nome || undefined,
         pagamento: entrega.pagamento,
@@ -467,7 +467,7 @@ export const EntregasProvider: React.FC<EntregasProviderProps> = ({ children }) 
     
     // Aqui seria implementado um algoritmo de otimização de rotas
     // Por enquanto, apenas marcamos como otimizada
-    const updatedRota = await updateRota(rotaId, { otimizada: true });
+    const updatedRota = await updateRota(rotaId, {});
     
     return updatedRota;
   };

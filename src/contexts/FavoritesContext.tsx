@@ -114,10 +114,10 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
   
   // Função para alternar um app como favorito
   const toggleFavorite = async (appId: string) => {
-    if (!profile?.id) return;
-    
     try {
-      let newFavorites: string[];
+      if (!profile) return;
+      
+      let newFavorites: string[] = [];
       
       setFavorites(prevFavorites => {
         if (prevFavorites.includes(appId)) {
@@ -135,8 +135,10 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
     } catch (error) {
       console.error('Erro ao alternar favorito:', error);
       // Em caso de erro, recarrega os favoritos para garantir consistência
-      const serverFavorites = await favoritesService.getFavorites(profile.id);
-      setFavorites(serverFavorites);
+      if (profile) {
+        const serverFavorites = await favoritesService.getFavorites(profile.id);
+        setFavorites(serverFavorites);
+      }
     }
   };
   

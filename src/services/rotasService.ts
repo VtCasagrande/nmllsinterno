@@ -5,8 +5,29 @@ import { Database } from '@/lib/supabase';
 // Tipos
 export type Rota = Database['public']['tables']['rotas']['Row'];
 export type ProdutoRota = Database['public']['tables']['produtos_rota']['Row'];
-export type ItemRota = Database['public']['tables']['itens_rota']['Row'];
-export type PagamentoRota = Database['public']['tables']['pagamentos_rota']['Row'];
+
+// Tipos provisórios (até atualização do schema da base de dados)
+export type ItemRota = {
+  id: string;
+  rota_id: string;
+  descricao: string;
+  quantidade: number;
+  valor_unitario: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PagamentoRota = {
+  id: string;
+  rota_id: string;
+  tipo: 'dinheiro' | 'cartao' | 'pix' | 'outro';
+  valor: number;
+  parcelado: boolean;
+  parcelas: number;
+  recebido: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
 export interface RotaCompleta extends Rota {
   produtos?: ProdutoRota[];
@@ -554,7 +575,7 @@ export const rotasService = {
 
       return data.map(item => ({
         id: item.id,
-        nome: item.profiles?.name || 'Motorista sem nome',
+        nome: item.profiles && item.profiles[0]?.name || 'Motorista sem nome',
         veiculo: item.veiculo,
         placa: item.placa,
         status: item.status
@@ -605,11 +626,11 @@ export const rotasService = {
         const idsExistentes = itensExistentes.map(item => item.id);
         
         // Separar itens a serem atualizados dos novos
-        const itensParaAtualizar = itens.filter(item => item.id && !item.id.startsWith('temp_'));
-        const itensParaAdicionar = itens.filter(item => !item.id || item.id.startsWith('temp_'));
+        const itensParaAtualizar = itens.filter((item: any) => item.id && !item.id.startsWith('temp_'));
+        const itensParaAdicionar = itens.filter((item: any) => !item.id || item.id.startsWith('temp_'));
         
         // IDs dos itens que serão mantidos
-        const idsManterItens = itensParaAtualizar.map(item => item.id);
+        const idsManterItens = itensParaAtualizar.map((item: any) => item.id);
         
         // IDs dos itens para excluir (itens que existem mas não estão na lista atualizada)
         const idsExcluirItens = idsExistentes.filter(id => !idsManterItens.includes(id));
@@ -645,7 +666,7 @@ export const rotasService = {
         
         // Adicionar novos itens
         if (itensParaAdicionar.length > 0) {
-          const novosItens = itensParaAdicionar.map(item => ({
+          const novosItens = itensParaAdicionar.map((item: any) => ({
             rota_id: id,
             descricao: item.descricao,
             quantidade: item.quantidade,
@@ -680,11 +701,11 @@ export const rotasService = {
         const idsExistentes = pagamentosExistentes.map(pagto => pagto.id);
         
         // Separar pagamentos a serem atualizados dos novos
-        const pagamentosParaAtualizar = pagamentos.filter(pagto => pagto.id && !pagto.id.startsWith('temp_'));
-        const pagamentosParaAdicionar = pagamentos.filter(pagto => !pagto.id || pagto.id.startsWith('temp_'));
+        const pagamentosParaAtualizar = pagamentos.filter((item: any) => item.id && !item.id.startsWith('temp_'));
+        const pagamentosParaAdicionar = pagamentos.filter((item: any) => !item.id || item.id.startsWith('temp_'));
         
         // IDs dos pagamentos que serão mantidos
-        const idsManterPagtos = pagamentosParaAtualizar.map(pagto => pagto.id);
+        const idsManterPagtos = pagamentosParaAtualizar.map((item: any) => item.id);
         
         // IDs dos pagamentos para excluir (pagamentos que existem mas não estão na lista atualizada)
         const idsExcluirPagtos = idsExistentes.filter(id => !idsManterPagtos.includes(id));
@@ -722,13 +743,13 @@ export const rotasService = {
         
         // Adicionar novos pagamentos
         if (pagamentosParaAdicionar.length > 0) {
-          const novosPagamentos = pagamentosParaAdicionar.map(pagto => ({
+          const novosPagamentos = pagamentosParaAdicionar.map((pagto: any) => ({
             rota_id: id,
             tipo: pagto.tipo,
             valor: pagto.valor,
-            parcelado: pagto.parcelado,
-            parcelas: pagto.parcelas,
-            recebido: pagto.recebido,
+            parcelado: pagto.parcelado || false,
+            parcelas: pagto.parcelas || 1,
+            recebido: pagto.recebido || false,
             created_at: new Date().toISOString(),
             created_by: userId
           }));
@@ -744,7 +765,12 @@ export const rotasService = {
       }
       
       // Buscar a rota atualizada com todos os relacionamentos
-      return await this.buscarRotaPorId(id);
+      const rotaFinal = await this.buscarRotaPorId(id);
+      if (!rotaFinal) {
+        throw new Error(`Não foi possível encontrar a rota ${id} após atualização`);
+      }
+      
+      return rotaFinal;
     } catch (error) {
       console.error(`Erro ao atualizar rota ${id}:`, error);
       throw error;
@@ -894,7 +920,7 @@ export const rotasService = {
       await logAction(
         'create',
         'Foto de entrega registrada',
-        'fotos_entrega',
+        'rotas',
         rotaId,
         userId
       );

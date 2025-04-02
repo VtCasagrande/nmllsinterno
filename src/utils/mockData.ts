@@ -36,10 +36,10 @@ export async function getMotoristas(): Promise<Motorista[]> {
     }
 
     // Transformar para o formato esperado pelas funções existentes
-    return motoristasData.map(m => ({
+    return motoristasData.map((m: any) => ({
       id: m.id,
-      nome: m.profiles.nome,
-      telefone: m.profiles.telefone || '',
+      nome: m.profiles?.nome || 'Motorista sem nome',
+      telefone: m.profiles?.telefone || '',
       status: m.status as 'ativo' | 'inativo' | 'em_rota',
       veiculo: m.veiculo,
       placaVeiculo: m.placa,
@@ -79,12 +79,12 @@ export async function getRotas(): Promise<Rota[]> {
     }
 
     // Transformar para o formato esperado pelas funções existentes
-    return rotasData.map(r => ({
+    return rotasData.map((r: any) => ({
       id: r.id,
       codigo: r.codigo,
       data: r.data_entrega,
       motoristaId: r.motorista_id || undefined,
-      motoristaNome: r.motoristas?.profiles?.name || undefined,
+      motoristaNome: r.motoristas?.[0]?.profiles?.[0]?.name || undefined,
       status: r.status as 'pendente' | 'em_andamento' | 'concluida' | 'cancelada',
       entregas: [], // Seriam preenchidas com produtos_rota em uma implementação completa
       otimizada: true

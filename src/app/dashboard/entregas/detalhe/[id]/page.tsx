@@ -463,7 +463,7 @@ function FormularioFinalizar({
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormState(prev => ({ ...prev, [name]: value }));
+    setFormState((prev: any) => ({ ...prev, [name]: value }));
   };
   
   return (
@@ -543,7 +543,7 @@ export default function DetalhesEntrega() {
   const rotaId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   
   const [entrega, setEntrega] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -604,7 +604,7 @@ export default function DetalhesEntrega() {
     // Configurar atualizações em tempo real
     const subscription = rotasService.obterAtualizacoesTempoReal(rotaId, (atualizacao) => {
       // Atualizar o estado da entrega quando houver mudanças
-      setEntrega(prevEntrega => {
+      setEntrega((prevEntrega: any) => {
         if (!prevEntrega) return atualizacao;
         return { ...prevEntrega, ...atualizacao };
       });
@@ -618,7 +618,7 @@ export default function DetalhesEntrega() {
 
   // Atualizar localização do motorista
   useEffect(() => {
-    if (!entrega || entrega.status !== 'em_andamento' || !user?.id) return;
+    if (!entrega || entrega.status !== 'em_andamento' || !profile?.id) return;
     
     let positionWatcher: number | null = null;
     
@@ -632,7 +632,7 @@ export default function DetalhesEntrega() {
                 rotaId,
                 latitude,
                 longitude,
-                user.id
+                profile.id
               );
             } catch (error) {
               console.error('Erro ao atualizar localização:', error);
@@ -657,7 +657,7 @@ export default function DetalhesEntrega() {
         navigator.geolocation.clearWatch(positionWatcher);
       }
     };
-  }, [entrega?.status, rotaId, user?.id]);
+  }, [entrega?.status, rotaId, profile?.id]);
 
   if (loading) {
     return (
@@ -691,7 +691,7 @@ export default function DetalhesEntrega() {
   };
 
   const handleCaptureAssinatura = async (assinaturaUrl: string) => {
-    if (!user?.id) {
+    if (!profile?.id) {
       toast({
         title: "Erro de autenticação",
         description: "É necessário estar autenticado para adicionar uma assinatura",
@@ -708,7 +708,7 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a assinatura...",
       });
       
-      const sucesso = await rotasService.adicionarAssinatura(rotaId, assinaturaUrl, user.id);
+      const sucesso = await rotasService.adicionarAssinatura(rotaId, assinaturaUrl, profile.id);
       
       if (sucesso) {
         toast({
@@ -735,7 +735,7 @@ export default function DetalhesEntrega() {
   };
 
   const handleCaptureFoto = async (fotoFile: File) => {
-    if (!user?.id) {
+    if (!profile?.id) {
       toast({
         title: "Erro de autenticação",
         description: "É necessário estar autenticado para adicionar uma foto",
@@ -752,7 +752,7 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a foto...",
       });
       
-      const fotoUrl = await rotasService.adicionarFotoEntrega(rotaId, fotoFile, user.id);
+      const fotoUrl = await rotasService.adicionarFotoEntrega(rotaId, fotoFile, profile.id);
       
       if (fotoUrl) {
         toast({
@@ -781,7 +781,7 @@ export default function DetalhesEntrega() {
   };
 
   const handleFinalizarEntrega = async () => {
-    if (!user?.id) {
+    if (!profile?.id) {
       toast({
         title: "Erro de autenticação",
         description: "É necessário estar autenticado para finalizar a entrega",
@@ -800,11 +800,11 @@ export default function DetalhesEntrega() {
       const sucesso = await rotasService.finalizarEntrega(
         rotaId, 
         {
-          assinatura: assinatura,
+          assinatura: assinatura || undefined,
           observacoes: formFinalizarEntrega.observacoes,
           responsavel_recebimento: formFinalizarEntrega.responsavel
         }, 
-        user.id
+        profile.id
       );
       
       if (sucesso) {
@@ -815,7 +815,7 @@ export default function DetalhesEntrega() {
         });
         
         // Atualizar o estado local
-        setEntrega(prev => ({ ...prev, status: 'concluida' }));
+        setEntrega((prev: any) => ({ ...prev, status: 'concluida' }));
         
         // Verificar próxima entrega na rota
         // Esta lógica poderia ser implementada para mostrar o modal de próxima entrega
@@ -836,7 +836,7 @@ export default function DetalhesEntrega() {
   };
 
   const handleAlterarStatus = async (novoStatus: StatusEntrega) => {
-    if (!user?.id) {
+    if (!profile?.id) {
       toast({
         title: "Erro de autenticação",
         description: "É necessário estar autenticado para alterar o status",
@@ -856,7 +856,7 @@ export default function DetalhesEntrega() {
       
       // Se estiver iniciando a entrega (colocando em rota)
       if (novoStatus === StatusEntrega.EM_ROTA) {
-        await rotasService.atualizarStatusRota(rotaId, novoStatus, user.id);
+        await rotasService.atualizarStatusRota(rotaId, 'em_andamento', profile.id);
         
         toast({
           title: "Sucesso!",
@@ -865,7 +865,7 @@ export default function DetalhesEntrega() {
         });
         
         // Atualizar o estado local
-        setEntrega(prev => ({ ...prev, status: novoStatus }));
+        setEntrega((prev: any) => ({ ...prev, status: novoStatus }));
       } 
       // Se estiver cancelando
       else if (novoStatus === StatusEntrega.CANCELADA) {
@@ -877,7 +877,7 @@ export default function DetalhesEntrega() {
           isDanger: true,
           action: async () => {
             try {
-              await rotasService.atualizarStatusRota(rotaId, novoStatus, user.id);
+              await rotasService.atualizarStatusRota(rotaId, 'cancelada', profile.id);
               
               toast({
                 title: "Entrega cancelada",
@@ -886,7 +886,7 @@ export default function DetalhesEntrega() {
               });
               
               // Atualizar o estado local
-              setEntrega(prev => ({ ...prev, status: novoStatus }));
+              setEntrega((prev: any) => ({ ...prev, status: novoStatus }));
             } catch (error) {
               console.error("Erro ao cancelar entrega:", error);
               toast({

@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { devolucoesService, Devolucao, ItemDevolucao } from '@/services/devolucoesService';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
 
 export default function EdicaoDevolucaoPage() {
@@ -15,7 +15,7 @@ export default function EdicaoDevolucaoPage() {
   const params = useParams();
   const id = params.id as string;
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,10 +109,10 @@ export default function EdicaoDevolucaoPage() {
       }
     };
 
-    if (user) {
+    if (profile) {
       carregarDevolucao();
     }
-  }, [id, router, toast, user]);
+  }, [id, router, toast, profile]);
   
   // Handler para mudanças nos inputs do formulário
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -174,7 +174,7 @@ export default function EdicaoDevolucaoPage() {
         ));
       }
     } else {
-      if (!user) return;
+      if (!profile) return;
       
       try {
         const fotoUrl = fotos[index];
@@ -260,12 +260,12 @@ export default function EdicaoDevolucaoPage() {
 
   // Adicionar comentário
   const adicionarComentario = async (texto: string) => {
-    if (!texto.trim() || !user || !devolucao) {
+    if (!texto.trim() || !profile || !devolucao) {
       return;
     }
 
     try {
-      const success = await devolucoesService.addComentario(devolucao.id, texto, user.id);
+      const success = await devolucoesService.addComentario(devolucao.id, texto, profile.id);
       
       if (success) {
         // Recarregar a devolução para obter o comentário atualizado
@@ -321,7 +321,7 @@ export default function EdicaoDevolucaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validarFormulario() || !user || !devolucao) {
+    if (!validarFormulario() || !profile || !devolucao) {
       return;
     }
     
@@ -339,18 +339,18 @@ export default function EdicaoDevolucaoPage() {
           pedido_tiny: formData.pedido_tiny,
           nota_fiscal: formData.nota_fiscal
         },
-        user.id
+        profile.id
       );
       
       // 2. Atualizar produtos
-      await devolucoesService.updateItens(devolucao.id, formData.produtos, user.id);
+      await devolucoesService.updateItens(devolucao.id, formData.produtos, profile.id);
       
       // 3. Fazer upload de novas fotos
       if (newFotos.length > 0) {
         setUploadingFotos(true);
         
         for (const foto of newFotos) {
-          await devolucoesService.addFoto(devolucao.id, foto, user.id);
+          await devolucoesService.addFoto(devolucao.id, foto, profile.id);
         }
         
         setUploadingFotos(false);
@@ -384,7 +384,7 @@ export default function EdicaoDevolucaoPage() {
     }
   };
   
-  if (!user) {
+  if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Você precisa estar logado para acessar esta página.</p>
@@ -597,7 +597,7 @@ export default function EdicaoDevolucaoPage() {
                               <td className="px-3 py-2 whitespace-nowrap text-sm text-right">
                                 <button
                                   type="button"
-                                  onClick={() => removerProduto(produto.id)}
+                                  onClick={() => removerProduto(produto.id || '')}
                                   className="text-red-600 hover:text-red-800"
                                 >
                                   <X size={16} />

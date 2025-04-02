@@ -29,18 +29,20 @@ import { rotasService } from '@/services/rotasService';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useEntregas } from '@/contexts/EntregasContext';
+import { RotaCompleta } from '@/services/rotasService';
 
 export default function EditarRotaPage() {
   const params = useParams();
+  const id = params?.id as string;
   const router = useRouter();
   const { toast } = useToast();
   const { profile } = useAuth();
   const { recarregarEntregas, motoristas } = useEntregas();
   
-  const [rota, setRota] = useState(null);
+  const [rota, setRota] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [erro, setErro] = useState(null);
+  const [erro, setErro] = useState<string | null>(null);
   
   // Estados do formulário
   const [formData, setFormData] = useState({
@@ -54,13 +56,13 @@ export default function EditarRotaPage() {
     horario_maximo: '',
     observacoes: '',
     motorista_id: '',
-    status: ''
+    status: 'pendente'
   });
   
   // Estado para itens
-  const [itens, setItens] = useState([]);
+  const [itens, setItens] = useState<any[]>([]);
   // Estado para pagamentos
-  const [pagamentos, setPagamentos] = useState([]);
+  const [pagamentos, setPagamentos] = useState<any[]>([]);
   
   // Opções para o status
   const statusOptions = [
@@ -75,11 +77,11 @@ export default function EditarRotaPage() {
   // Carregar dados da rota
   useEffect(() => {
     async function carregarRota() {
-      if (!params.id) return;
+      if (!id) return;
       
       try {
         setLoading(true);
-        const rotaData = await rotasService.buscarRotaPorId(params.id);
+        const rotaData = await rotasService.buscarRotaPorId(id as string);
         
         if (!rotaData) {
           setErro('Rota não encontrada');
@@ -91,17 +93,17 @@ export default function EditarRotaPage() {
         
         // Preencher o formulário com os dados da rota
         setFormData({
-          nome_cliente: rotaData.nome_cliente || '',
-          telefone_cliente: rotaData.telefone_cliente || '',
-          endereco: rotaData.endereco || '',
-          complemento: rotaData.complemento || '',
-          cidade: rotaData.cidade || '',
-          cep: rotaData.cep || '',
-          data_entrega: rotaData.data_entrega || '',
-          horario_maximo: rotaData.horario_maximo || '',
-          observacoes: rotaData.observacoes || '',
-          motorista_id: rotaData.motorista_id || '',
-          status: rotaData.status || 'pendente'
+          nome_cliente: (rotaData as any).nome_cliente || '',
+          telefone_cliente: (rotaData as any).telefone_cliente || '',
+          endereco: (rotaData as any).endereco || '',
+          complemento: (rotaData as any).complemento || '',
+          cidade: (rotaData as any).cidade || '',
+          cep: (rotaData as any).cep || '',
+          data_entrega: (rotaData as any).data_entrega || '',
+          horario_maximo: (rotaData as any).horario_maximo || '',
+          observacoes: (rotaData as any).observacoes || '',
+          motorista_id: (rotaData as any).motorista_id || '',
+          status: (rotaData as any).status || 'pendente'
         });
         
         // Preencher itens
@@ -124,27 +126,27 @@ export default function EditarRotaPage() {
     }
     
     carregarRota();
-  }, [params.id]);
+  }, [id]);
   
   // Lidar com alterações no formulário
-  const handleInputChange = (e) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       [name]: value
     }));
   };
   
   // Lidar com alterações em campos select
-  const handleSelectChange = (name, value) => {
-    setFormData(prev => ({
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev: any) => ({
       ...prev,
       [name]: value
     }));
   };
   
   // Lidar com alterações nos itens
-  const handleItemChange = (index, field, value) => {
+  const handleItemChange = (index: number, field: string, value: any) => {
     const novosItens = [...itens];
     novosItens[index] = {
       ...novosItens[index],
@@ -167,20 +169,28 @@ export default function EditarRotaPage() {
   };
   
   // Remover item
-  const removerItem = (index) => {
+  const removerItem = (index: number) => {
     const novosItens = [...itens];
     novosItens.splice(index, 1);
     setItens(novosItens);
   };
   
   // Lidar com alterações nos pagamentos
-  const handlePagamentoChange = (index, field, value) => {
+  const handlePagamentoChange = (index: number, field: string, value: any) => {
     const novosPagamentos = [...pagamentos];
-    novosPagamentos[index] = {
-      ...novosPagamentos[index],
-      [field]: field === 'valor' || field === 'parcelas' ? parseFloat(value) : value,
-      [field === 'parcelas' && value > 1 ? 'parcelado' : null]: field === 'parcelas' && value > 1 ? true : undefined
-    };
+    const item = {...novosPagamentos[index]};
+    
+    // Atualizar o valor normalmente
+    item[field] = field === 'valor' || field === 'parcelas' ? parseFloat(value) : value;
+    
+    // Atualizar o campo parcelado baseado no número de parcelas
+    if (field === 'parcelas' && value > 1) {
+      item['parcelado'] = true;
+    } else if (field === 'parcelas' && value <= 1) {
+      item['parcelado'] = false;
+    }
+    
+    novosPagamentos[index] = item;
     setPagamentos(novosPagamentos);
   };
   
@@ -200,7 +210,7 @@ export default function EditarRotaPage() {
   };
   
   // Remover pagamento
-  const removerPagamento = (index) => {
+  const removerPagamento = (index: number) => {
     const novosPagamentos = [...pagamentos];
     novosPagamentos.splice(index, 1);
     setPagamentos(novosPagamentos);
@@ -245,7 +255,7 @@ export default function EditarRotaPage() {
       const userId = profile?.id || 'sistema';
       
       // Atualizar a rota
-      await rotasService.atualizarRota(params.id, dadosAtualizados, userId);
+      await rotasService.atualizarRota(id, dadosAtualizados, userId);
       
       // Recarregar dados atualizados no contexto
       await recarregarEntregas();
@@ -256,7 +266,7 @@ export default function EditarRotaPage() {
       });
       
       // Redirecionar para a página de detalhes
-      router.push(`/dashboard/entregas/detalhe/${params.id}`);
+      router.push(`/dashboard/entregas/detalhe/${id}`);
     } catch (error) {
       console.error('Erro ao salvar rota:', error);
       toast({

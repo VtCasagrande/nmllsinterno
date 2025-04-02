@@ -106,7 +106,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
   const [trocas, setTrocas] = useState<Troca[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [filtros, setFiltros] = useState<TrocaFiltros>({});
 
@@ -117,7 +117,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Obter todas as trocas
   const getTrocas = async (): Promise<void> => {
-    if (!user) return;
+    if (!profile) return;
 
     try {
       setLoading(true);
@@ -140,7 +140,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Obter uma troca pelo ID
   const getTrocaById = async (id: string): Promise<Troca | null> => {
-    if (!user) return null;
+    if (!profile) return null;
     
     try {
       setLoading(true);
@@ -164,7 +164,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Criar uma nova troca
   const createTroca = async (dados: TrocaInput): Promise<Troca> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -172,7 +172,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const novaTroca = await trocasService.criarTroca(dados, user.id);
+      const novaTroca = await trocasService.criarTroca(dados, profile.id);
       
       // Atualizar o estado local
       setTrocas(prevTrocas => [...prevTrocas, novaTroca]);
@@ -203,7 +203,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Atualizar uma troca existente
   const updateTroca = async (id: string, dados: TrocaUpdate): Promise<Troca> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -211,7 +211,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const trocaAtualizada = await trocasService.atualizarTroca(id, dados, user.id);
+      const trocaAtualizada = await trocasService.atualizarTroca(id, dados, profile.id);
       
       // Atualizar o estado local
       setTrocas(prevTrocas => 
@@ -244,7 +244,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Finalizar uma troca
   const finalizarTroca = async (id: string): Promise<Troca> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -252,7 +252,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      const trocaFinalizada = await trocasService.finalizarTroca(id, user.id);
+      const trocaFinalizada = await trocasService.finalizarTroca(id, profile.id);
       
       // Atualizar o estado local
       setTrocas(prevTrocas => 
@@ -285,7 +285,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Excluir uma troca
   const deleteTroca = async (id: string): Promise<boolean> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -293,7 +293,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      await trocasService.excluirTroca(id, user.id);
+      await trocasService.excluirTroca(id, profile.id);
       
       // Atualizar o estado local
       setTrocas(prevTrocas => prevTrocas.filter(t => t.id !== id));
@@ -324,7 +324,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Adicionar comentário a uma troca
   const addComentario = async (trocaId: string, comentario: ComentarioTrocaInput): Promise<ComentarioTroca> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -335,7 +335,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       const novoComentario = await trocasService.adicionarComentario(
         trocaId, 
         comentario.texto, 
-        user.id
+        profile.id
       );
       
       // Atualizar o estado local
@@ -501,7 +501,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Atualizar o status de uma troca
   const updateTrocaStatus = async (id: string, status: TrocaStatus): Promise<boolean> => {
-    if (!user) {
+    if (!profile) {
       throw new Error('Usuário não autenticado');
     }
     
@@ -509,7 +509,7 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
       setLoading(true);
       setError(null);
       
-      await trocasService.atualizarStatusTroca(id, status, user.id);
+      await trocasService.atualizarStatusTroca(id, status, profile.id);
       
       // Atualizar o estado local
       setTrocas(prevTrocas => 

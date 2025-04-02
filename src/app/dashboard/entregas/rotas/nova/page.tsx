@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { rotasService } from '@/services/rotasService';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
+import { RotaAPI } from '@/types/entregas';
 
 // Interfaces e tipos
 interface ProdutoRota {
@@ -466,55 +467,54 @@ export default function NovaEntrega() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validação básica
-    if (!formData.nomeCliente || !formData.endereco || !formData.cidade || !formData.dataEntrega) {
-      setErrors({ ...errors, general: 'Preencha todos os campos obrigatórios' });
-      return;
-    }
-    
-    // Validar se tem produtos
-    if (produtos.length === 0) {
-      setErrors({ ...errors, produtos: 'Adicione pelo menos um produto' });
+    // Validação básica já foi feita no validarFormulario()
+    if (!validarFormulario()) {
       return;
     }
     
     // Iniciar envio
     setIsSubmitting(true);
-    setErrors({ ...errors, general: null });
+    setErrors({ ...errors, general: '' });
     
     try {
       // Converter produtos para o formato esperado pela API
-      const itensRota = produtos.map(p => ({
+      const produtosAPI = produtos.map(p => ({
+        nome: p.nome,
+        quantidade: p.quantidade,
+        valor: p.valor,
+        codigo: p.codigo
+      }));
+      
+      // Converter produtos para o formato de itens
+      const itensAPI = produtos.map(p => ({
         descricao: p.nome,
         quantidade: p.quantidade,
         valor_unitario: p.valor
       }));
       
       // Filtrar pagamentos com valor > 0
-      const pagamentosRota = [formData.pagamento].filter(p => p.valor > 0).map(p => ({
-        tipo: p.forma.toLowerCase() as 'dinheiro' | 'cartao' | 'pix' | 'outro',
-        valor: p.valor,
-        parcelado: p.forma === 'cartao' && p.parcelamento !== undefined,
-        parcelas: p.parcelamento,
-        recebido: p.receber
-      }));
+      const pagamentosAPI = [{
+        tipo: formData.pagamento.forma as 'dinheiro' | 'cartao' | 'pix' | 'outro',
+        valor: formData.pagamento.valor,
+        parcelas: formData.pagamento.parcelamento || 1,
+        recebido: false
+      }];
       
-      // Dados a serem enviados para a API
+      // Montar objeto para envio seguindo a interface RotaAPI
       const dadosRota = {
-        motorista_id: formData.motorista_id,
+        motorista_id: formData.motorista_id || "",
         nome_cliente: formData.nomeCliente,
         telefone_cliente: formData.telefoneCliente,
         data_entrega: formData.data,
-        horario_maximo: formData.horarioMaximo,
-        endereco: formData.endereco,
-        complemento: formData.endereco.complemento,
-        cidade: formData.endereco.cidade,
-        estado: 'SP',
-        cep: formData.endereco.cep,
-        numero_pedido: formData.numeroTiny,
-        observacoes: formData.observacoes,
-        itens: itensRota,
-        pagamentos: pagamentosRota
+        horario_maximo: formData.horarioMaximo?.horario || "18:00",
+        endereco: formData.endereco.logradouro,
+        complemento: formData.endereco.complemento || "",
+        cidade: formData.endereco.cidade || "",
+        observacoes: formData.observacoes || "",
+        status: "pendente",
+        produtos: produtosAPI,
+        pagamentos: pagamentosAPI,
+        itens: itensAPI
       };
       
       // Enviar para a API usando userID do contexto de autenticação

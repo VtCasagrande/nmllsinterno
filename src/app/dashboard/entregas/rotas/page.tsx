@@ -67,12 +67,12 @@ interface Entrega {
 }
 
 // Mapeamento de status de entrega para exibição
-const ENTREGA_STATUS_MAP: Record<string, { label: string; className: string }> = {
-  pendente: { label: 'Pendente', className: 'bg-yellow-100 text-yellow-800' },
-  atribuida: { label: 'Atribuída', className: 'bg-blue-100 text-blue-800' },
-  em_andamento: { label: 'Em Rota', className: 'bg-purple-100 text-purple-800' },
-  concluida: { label: 'Entregue', className: 'bg-green-100 text-green-800' },
-  cancelada: { label: 'Cancelada', className: 'bg-red-100 text-red-800' },
+const ENTREGA_STATUS_MAP: Record<string, { label: string; bgColor: string; textColor: string }> = {
+  pendente: { label: 'Pendente', bgColor: 'bg-yellow-100', textColor: 'text-yellow-800' },
+  atribuida: { label: 'Atribuída', bgColor: 'bg-blue-100', textColor: 'text-blue-800' },
+  em_andamento: { label: 'Em Rota', bgColor: 'bg-purple-100', textColor: 'text-purple-800' },
+  concluida: { label: 'Entregue', bgColor: 'bg-green-100', textColor: 'text-green-800' },
+  cancelada: { label: 'Cancelada', bgColor: 'bg-red-100', textColor: 'text-red-800' },
 };
 
 // Mapeamento de forma de pagamento para exibição
@@ -161,10 +161,10 @@ export default function EntregasListaPage() {
   const [quickViewEntrega, setQuickViewEntrega] = useState<any | null>(null);
   const [modalDetalhesAberto, setModalDetalhesAberto] = useState(false);
   
-  // Estado para as entregas reais do Supabase
-  const [entregas, setEntregas] = useState<RotaCompleta[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  // Estados
+  const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  const [entregas, setEntregas] = useState<any[]>([]);
   
   // Referência para monitorar se o componente está montado
   const isMounted = useRef(true);
@@ -172,51 +172,37 @@ export default function EntregasListaPage() {
   // Carregar entregas do Supabase
   useEffect(() => {
     async function carregarEntregas() {
-      setCarregando(true);
+      setLoading(true);
       try {
         // Buscar rotas do Supabase
         const rotas = await rotasService.listarRotas();
         
         if (isMounted.current) {
           // Mapear as rotas para o formato esperado pelo componente
-          const entregasMapeadas = rotas.map(rota => {
+          const dadosFormatados = rotas.map(rota => {
             return {
               id: rota.id,
               codigo: rota.codigo,
-              numeroPedido: rota.numero_pedido,
-              nomeCliente: rota.nome_cliente,
-              telefoneCliente: rota.telefone_cliente,
-              endereco: rota.endereco,
-              complemento: rota.complemento,
-              cidade: rota.cidade,
-              estado: rota.estado,
-              cep: rota.cep,
-              dataEntrega: rota.data_entrega,
-              horarioMaximo: rota.horario_maximo,
-              status: rota.status || 'pendente',
-              observacoes: rota.observacoes,
-              motoristaId: rota.motorista_id,
-              motoristaNome: rota.motorista?.nome,
-              motoristaVeiculo: rota.motorista?.veiculo,
-              motoristaPlaca: rota.motorista?.placa,
-              itens: rota.itens?.map(item => ({
-                id: item.id,
-                descricao: item.descricao,
-                quantidade: item.quantidade,
-                valorUnitario: item.valor_unitario
-              })) || [],
-              pagamentos: rota.pagamentos?.map(pagto => ({
-                id: pagto.id,
-                tipo: pagto.tipo,
-                valor: pagto.valor,
-                parcelado: pagto.parcelado,
-                parcelas: pagto.parcelas,
-                recebido: pagto.recebido
-              })) || []
+              numeroPedido: (rota as any).numero_pedido,
+              nomeCliente: (rota as any).nome_cliente,
+              telefoneCliente: (rota as any).telefone_cliente,
+              endereco: (rota as any).endereco,
+              complemento: (rota as any).complemento,
+              cidade: (rota as any).cidade,
+              cep: (rota as any).cep,
+              dataEntrega: (rota as any).data_entrega,
+              horarioMaximo: (rota as any).horario_maximo,
+              status: rota.status,
+              motoristaId: (rota as any).motorista_id,
+              nomeMotorista: (rota as any).motorista?.name || 'Não atribuído',
+              totalItens: ((rota as any).itens || []).length,
+              valorTotal: ((rota as any).itens || []).reduce((acc: number, item: any) => acc + (item.quantidade * item.valor_unitario), 0),
+              entregue: rota.status === 'concluida',
+              criado: formatarData(rota.created_at)
             };
           });
           
-          setEntregas(entregasMapeadas);
+          setEntregas(dadosFormatados);
           setErro(null);
         }
       } catch (error) {
@@ -226,7 +212,7 @@ export default function EntregasListaPage() {
         }
       } finally {
         if (isMounted.current) {
-          setCarregando(false);
+          setLoading(false);
         }
       }
     }
@@ -320,17 +306,17 @@ export default function EntregasListaPage() {
   // Obter os motoristas únicos das entregas para filtros
   const motoristaSet = new Set<string>();
   const motoristas = entregas
-    .filter(e => e.motoristaId && e.motoristaNome)
+    .filter(e => e.motoristaId && e.nomeMotorista)
     .filter(e => {
       // Verificar se já adicionamos este motorista
-      const key = `${e.motoristaId}-${e.motoristaNome}`;
+      const key = `${e.motoristaId}-${e.nomeMotorista}`;
       if (!motoristaSet.has(key)) {
         motoristaSet.add(key);
         return true;
       }
       return false;
     })
-    .map(e => ({ id: e.motoristaId!, nome: e.motoristaNome! }));
+    .map(e => ({ id: e.motoristaId!, nome: e.nomeMotorista! }));
 
   // Handler para visualização rápida
   const handleQuickView = (entregaId: string) => {
@@ -692,14 +678,14 @@ export default function EntregasListaPage() {
         </div>
         
         {/* Estado de carregamento e erro */}
-        {carregando && (
+        {loading && (
           <div className="p-8 flex flex-col items-center justify-center">
             <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
             <p className="mt-4 text-gray-600">Carregando entregas...</p>
           </div>
         )}
         
-        {erro && !carregando && (
+        {erro && !loading && (
           <div className="p-8 flex flex-col items-center justify-center">
             <div className="w-12 h-12 flex items-center justify-center rounded-full bg-red-100 text-red-600">
               <X size={24} />
@@ -715,7 +701,7 @@ export default function EntregasListaPage() {
         )}
         
         {/* Lista de entregas vazia */}
-        {!carregando && !erro && entregasFiltradas.length === 0 && (
+        {!loading && !erro && entregasFiltradas.length === 0 && (
           <div className="p-8 flex flex-col items-center justify-center">
             <div className="w-12 h-12 flex items-center justify-center rounded-full bg-gray-100 text-gray-600">
               <Package size={24} />
@@ -791,7 +777,7 @@ export default function EntregasListaPage() {
       </div>
       
       {/* Lista de entregas por data */}
-      {!carregando && !erro && entregasFiltradas.length > 0 && (
+      {!loading && !erro && entregasFiltradas.length > 0 && (
         <div className="divide-y">
           {Object.entries(entregasAgrupadas).map(([dataKey, entregasGrupo]) => (
             <div key={dataKey} className="py-4">
@@ -833,7 +819,7 @@ export default function EntregasListaPage() {
                     {entregasGrupo.map((entrega) => {
                       const { label: statusLabel, bgColor, textColor } = ENTREGA_STATUS_MAP[entrega.status] || ENTREGA_STATUS_MAP['pendente'];
                       const pagamentoInfo = entrega.pagamentos && entrega.pagamentos.length > 0 
-                        ? entrega.pagamentos.reduce((total, pgto) => total + pgto.valor, 0) 
+                        ? entrega.pagamentos.reduce((total: number, pgto: any) => total + pgto.valor, 0) 
                         : 0;
                       
                       return (
@@ -876,16 +862,11 @@ export default function EntregasListaPage() {
                             </span>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            {entrega.motoristaNome ? (
+                            {entrega.nomeMotorista ? (
                               <div>
                                 <div className="text-sm font-medium text-gray-900">
-                                  {entrega.motoristaNome}
+                                  {entrega.nomeMotorista}
                                 </div>
-                                {entrega.motoristaVeiculo && (
-                                  <div className="text-xs text-gray-500">
-                                    {entrega.motoristaVeiculo} {entrega.motoristaPlaca && `- ${entrega.motoristaPlaca}`}
-                                  </div>
-                                )}
                               </div>
                             ) : (
                               <span className="text-sm text-gray-500">Não atribuído</span>
@@ -1001,10 +982,7 @@ export default function EntregasListaPage() {
             {quickViewEntrega.motoristaId && (
               <div>
                 <div className="text-xs text-gray-500">Motorista</div>
-                <div className="font-medium">{quickViewEntrega.motoristaNome}</div>
-                {quickViewEntrega.motoristaVeiculo && (
-                  <div className="text-sm">{quickViewEntrega.motoristaVeiculo} - {quickViewEntrega.motoristaPlaca}</div>
-                )}
+                <div className="font-medium">{quickViewEntrega.nomeMotorista}</div>
               </div>
             )}
             
@@ -1088,16 +1066,10 @@ export default function EntregasListaPage() {
                     )}
                   </div>
                   
-                  {quickViewEntrega.motoristaNome && (
+                  {quickViewEntrega.motoristaId && (
                     <div>
                       <h3 className="text-sm font-medium text-gray-500 mb-1">Motorista</h3>
-                      <div className="font-medium">{quickViewEntrega.motoristaNome}</div>
-                      {quickViewEntrega.motoristaVeiculo && (
-                        <div className="text-sm">
-                          {quickViewEntrega.motoristaVeiculo} 
-                          {quickViewEntrega.motoristaPlaca && ` - ${quickViewEntrega.motoristaPlaca}`}
-                        </div>
-                      )}
+                      <div className="font-medium">{quickViewEntrega.nomeMotorista}</div>
                     </div>
                   )}
                   
@@ -1131,7 +1103,7 @@ export default function EntregasListaPage() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {quickViewEntrega.itens.map((item, index) => (
+                            {quickViewEntrega.itens.map((item: any, index: number) => (
                               <tr key={index}>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">
                                   {item.descricao}
@@ -1152,7 +1124,7 @@ export default function EntregasListaPage() {
                               </td>
                               <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-right">
                                 {formatarMoeda(quickViewEntrega.itens.reduce(
-                                  (total, item) => total + (item.valorUnitario * item.quantidade), 0
+                                  (total: number, item: any) => total + (item.valorUnitario * item.quantidade), 0
                                 ))}
                               </td>
                             </tr>
@@ -1178,7 +1150,7 @@ export default function EntregasListaPage() {
                             </tr>
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
-                            {quickViewEntrega.pagamentos.map((pagamento, index) => (
+                            {quickViewEntrega.pagamentos.map((pagamento: any, index: number) => (
                               <tr key={index}>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">
                                   {pagamento.tipo === 'dinheiro' ? 'Dinheiro' : 'Cartão'}
@@ -1216,7 +1188,7 @@ export default function EntregasListaPage() {
       )}
       
       {/* Mapa de todas as entregas */}
-      {showMap && !carregando && !erro && entregasFiltradas.length > 0 && (
+      {showMap && !loading && !erro && entregasFiltradas.length > 0 && (
         <div className="fixed bottom-4 left-4 right-4 h-[300px] bg-white rounded-lg shadow-lg border overflow-hidden z-20">
           <div className="flex items-center justify-between bg-gray-50 px-4 py-2 border-b">
             <h3 className="font-medium">Mapa de Entregas</h3>

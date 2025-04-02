@@ -1,16 +1,8 @@
 import { supabase } from './lib/supabase';
-import { cookies } from 'next/headers';
 
-// Função de autenticação para integração com Supabase
+// Função de autenticação para integração com Supabase usando cliente
 export async function auth() {
   try {
-    const cookieStore = cookies();
-    const supabaseSessionCookie = cookieStore.get('sb-auth-token');
-    
-    if (!supabaseSessionCookie?.value) {
-      return null;
-    }
-    
     // Validar sessão atual
     const { data, error } = await supabase.auth.getSession();
     

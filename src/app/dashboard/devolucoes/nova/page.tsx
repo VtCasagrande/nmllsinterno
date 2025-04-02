@@ -6,20 +6,20 @@ import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { devolucoesService, DevolucaoInput } from '@/services/devolucoesService';
 import { useToast } from '@/components/ui/use-toast';
-import { useAuth } from '@/auth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
 
 export default function NovaDevolucaoPage() {
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
   
   const [formData, setFormData] = useState<DevolucaoInput>({
     produto: '',
     motivo: 'produto_danificado',
     descricao: '',
-    responsavel_id: user?.id || '',
+    responsavel_id: profile?.id || '',
     data_recebimento: new Date().toISOString().split('T')[0],
     pedido_tiny: '',
     nota_fiscal: ''
@@ -66,14 +66,14 @@ export default function NovaDevolucaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!validateForm() || !user) {
+    if (!validateForm() || !profile) {
       return;
     }
 
     setLoading(true);
 
     try {
-      const result = await devolucoesService.createDevolucao(formData, user.id);
+      const result = await devolucoesService.createDevolucao(formData, profile.id);
 
       if (result) {
         toast({
@@ -97,7 +97,7 @@ export default function NovaDevolucaoPage() {
     }
   };
 
-  if (!user) {
+  if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Você precisa estar logado para acessar esta página.</p>

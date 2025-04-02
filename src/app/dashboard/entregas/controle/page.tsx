@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useEntregas } from '@/contexts/EntregasContext';
-import { StatusEntrega, Entrega, Rota, Motorista } from '@/types/entregas';
+import { StatusEntrega, Entrega, Motorista, RotaCompleta } from '@/types/entregas';
+import { rotasService } from '@/services/rotasService';
 import { 
   Search, 
   Filter, 
@@ -18,7 +19,8 @@ import {
   FileText,
   Check,
   Map,
-  Truck
+  Truck,
+  Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -37,15 +39,58 @@ const EntregaMap = dynamic(() => import('@/components/EntregaMap'), {
 });
 
 export default function ControleEntregasPage() {
-  const { entregas, motoristas, rotas, getEntregasPendentes, loading } = useEntregas();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('todas');
-  const [motoristaFilter, setMotoristaFilter] = useState<string>('todos');
-  const [dataFilter, setDataFilter] = useState<string>('');
+  const { entregas } = useEntregas();
+  const [rotas, setRotas] = useState<RotaCompleta[]>([]);
+  const [motoristas, setMotoristas] = useState<Motorista[]>([]);
   const [expandedRotas, setExpandedRotas] = useState<string[]>([]);
   const [expandedFiltros, setExpandedFiltros] = useState(false);
   const [entregasSemRota, setEntregasSemRota] = useState<Entrega[]>([]);
   
+  // Estados para filtros
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('todas');
+  const [motoristaFilter, setMotoristaFilter] = useState('todos');
+  const [dataFilter, setDataFilter] = useState('');
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  
+  // Referência para monitorar se o componente está montado
+  const isMounted = useRef(true);
+  
+  // Carregar rotas e motoristas
+  useEffect(() => {
+    async function carregarDados() {
+      setCarregando(true);
+      try {
+        // Buscar rotas e motoristas do Supabase
+        const rotasData = await rotasService.listarRotas();
+        const motoristasData = await rotasService.listarMotoristas();
+        
+        if (isMounted.current) {
+          setRotas(rotasData);
+          setMotoristas(motoristasData as any); // Usando any temporariamente para resolver o problema
+          setErro(null);
+        }
+      } catch (error) {
+        if (isMounted.current) {
+          console.error('Erro ao carregar dados:', error);
+          setErro('Ocorreu um erro ao carregar os dados. Tente novamente mais tarde.');
+        }
+      } finally {
+        if (isMounted.current) {
+          setCarregando(false);
+        }
+      }
+    }
+    
+    carregarDados();
+    
+    // Limpeza ao desmontar o componente
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   // Carregar entregas sem rota
   useEffect(() => {
     const semRota = entregas.filter(e => 
@@ -62,7 +107,7 @@ export default function ControleEntregasPage() {
     
     const matchesSearch = 
       rota.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rota.motoristaNome.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (rota.motorista?.nome || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       rotaEntregas.some(e => 
         e.numeroPedido.toLowerCase().includes(searchTerm.toLowerCase()) ||
         e.nomeCliente.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -70,9 +115,9 @@ export default function ControleEntregasPage() {
         e.cidade.toLowerCase().includes(searchTerm.toLowerCase())
       );
       
-    const matchesMotorista = motoristaFilter === 'todos' || rota.motoristaId === motoristaFilter;
+    const matchesMotorista = motoristaFilter === 'todos' || rota.motorista_id === motoristaFilter;
     
-    const matchesData = !dataFilter || new Date(rota.data).toLocaleDateString() === new Date(dataFilter).toLocaleDateString();
+    const matchesData = !dataFilter || new Date(rota.data_entrega).toLocaleDateString() === new Date(dataFilter).toLocaleDateString();
     
     return matchesSearch && matchesMotorista && matchesData;
   });
@@ -125,11 +170,11 @@ export default function ControleEntregasPage() {
   };
   
   // Renderizar card de rota
-  const renderRotaCard = (rota: Rota) => {
+  const renderRotaCard = (rota: RotaCompleta) => {
     const isExpanded = expandedRotas.includes(rota.id);
     const entregasRota = getEntregasRota(rota.id);
     const stats = getRotaStats(rota.id);
-    const motorista = motoristas.find(m => m.id === rota.motoristaId);
+    const motorista = motoristas.find(m => m.id === rota.motorista_id);
     
     return (
       <div key={rota.id} className="bg-white border rounded-lg overflow-hidden">
@@ -140,7 +185,7 @@ export default function ControleEntregasPage() {
           <div>
             <h3 className="font-medium">{rota.codigo}</h3>
             <p className="text-sm text-gray-500">
-              {new Date(rota.data).toLocaleDateString('pt-BR')} • {rota.motoristaNome}
+              {new Date(rota.data_entrega).toLocaleDateString('pt-BR')} • {rota.motorista?.nome || "Sem motorista"}
             </p>
           </div>
           
@@ -175,7 +220,7 @@ export default function ControleEntregasPage() {
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <User size={16} className="text-gray-500" />
-                  <span className="text-sm font-medium">Motorista: {rota.motoristaNome}</span>
+                  <span className="text-sm font-medium">Motorista: {rota.motorista?.nome || "Sem motorista"}</span>
                 </div>
                 
                 <div className="flex gap-2">
@@ -440,7 +485,7 @@ export default function ControleEntregasPage() {
       </div>
 
       {/* Lista de rotas */}
-      {loading ? (
+      {carregando ? (
         <div className="text-center py-10">
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-gray-300 border-t-blue-600"></div>
           <p className="mt-2 text-gray-500">Carregando dados...</p>

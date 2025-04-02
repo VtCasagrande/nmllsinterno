@@ -2,55 +2,63 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import { TrocaInput, TrocaStatus, TrocaTipo } from '@/types/trocas';
 import { withAuth } from '@/utils/withAuth';
-import { trocas } from '@/services/trocasService';
+import { trocasService } from '@/services/trocasService';
 
 // GET /api/trocas - Listar todas as trocas
-export const GET = withAuth(async () => {
-  return NextResponse.json(trocas);
-});
-
-// POST /api/trocas - Criar uma nova troca
-export const POST = withAuth(async (req: NextRequest, { userId }: { userId: string }) => {
+export const GET = withAuth(async (req: NextRequest) => {
   try {
-    const data: TrocaInput = await req.json();
-    
-    // Validação básica
-    if (!data.ean || !data.nomeProduto || !data.lojaParceira) {
-      return NextResponse.json(
-        { error: 'Campos obrigatórios não informados' },
-        { status: 400 }
-      );
-    }
-    
-    // Definir o status inicial com base no tipo de troca
-    let statusInicial: TrocaStatus;
-    if (data.tipo === TrocaTipo.ENVIADA) {
-      statusInicial = TrocaStatus.AGUARDANDO_DEVOLUCAO;
-    } else {
-      statusInicial = TrocaStatus.COLETADO;
-    }
-    
-    const now = new Date().toISOString();
-    const novaTroca = {
-      id: uuidv4(),
-      ...data,
-      status: statusInicial,
-      dataCriacao: now,
-      dataAtualizacao: now,
-      usuarioCriacao: userId,
-    };
-    
-    trocas.push(novaTroca);
-    
-    return NextResponse.json(novaTroca, { status: 201 });
+    // Obter parâmetros da query
+    const url = new URL(req.url);
+    const tipo = url.searchParams.get('tipo') || undefined;
+    const status = url.searchParams.get('status') || undefined;
+    const ean = url.searchParams.get('ean') || undefined;
+    const lojaParceira = url.searchParams.get('lojaParceira') || undefined;
+    const dataInicio = url.searchParams.get('dataInicio') || undefined;
+    const dataFim = url.searchParams.get('dataFim') || undefined;
+    const nomeProduto = url.searchParams.get('nomeProduto') || undefined;
+    const responsavel = url.searchParams.get('responsavel') || undefined;
+
+    // Buscar trocas filtradas
+    const trocas = await trocasService.buscarTrocas({
+      tipo: tipo as any,
+      status: status as any,
+      ean,
+      lojaParceira,
+      dataInicio,
+      dataFim,
+      nomeProduto,
+      responsavel
+    });
+
+    return NextResponse.json(trocas);
   } catch (error) {
-    console.error('Erro ao criar troca:', error);
+    console.error('Erro ao listar trocas:', error);
     return NextResponse.json(
       { error: 'Erro ao processar a solicitação' },
       { status: 500 }
     );
   }
 });
+
+// POST /api/trocas - Criar uma nova troca
+export const POST = withAuth(
+  async (req: NextRequest, { userId }: { userId: string }) => {
+    try {
+      const dados = await req.json();
+      
+      // Criar a nova troca usando o serviço
+      const novaTroca = await trocasService.criarTroca(dados, userId);
+      
+      return NextResponse.json(novaTroca, { status: 201 });
+    } catch (error) {
+      console.error('Erro ao criar troca:', error);
+      return NextResponse.json(
+        { error: 'Erro ao processar a solicitação' },
+        { status: 500 }
+      );
+    }
+  }
+);
 
 // Mostrando os valores dos enums para depuração
 console.log('TrocaTipo.ENVIADA =', TrocaTipo.ENVIADA);
