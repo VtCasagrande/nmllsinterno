@@ -154,3 +154,7 @@ export const AvatarGroup = ({ children }: { children: ReactNode }) => {
   return <div className="flex -space-x-2">{children}</div>;
 }; 
 */ 
+
+export * from "./spinner";
+export * from "./label";
+export * from "./textarea"; 
