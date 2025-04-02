@@ -134,7 +134,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (event === 'SIGNED_OUT') {
         setProfile(null);
         setLoading(false);
-        router.push('/login');
+        // Remover redirecionamento automático ao fazer logout
+        // router.push('/login');
       }
     });
 
@@ -201,7 +202,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       await supabase.auth.signOut();
       setProfile(null);
-      router.push('/login');
+      // Forçar redirecionamento para página de login usando window.location
+      window.location.href = window.location.origin + '/login';
     } catch (error) {
       console.error('Erro no logout:', error);
     }

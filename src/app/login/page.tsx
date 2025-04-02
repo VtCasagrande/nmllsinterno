@@ -123,10 +123,11 @@ function LoginContent() {
       const redirectTo = searchParams.get('redirect') || '/dashboard';
       console.log('Redirecionando para:', redirectTo);
       
-      // Pequeno atraso antes do redirecionamento para garantir que o estado foi atualizado
-      setTimeout(() => {
-        router.push(redirectTo);
-      }, 500);
+      // Forçar redirecionamento usando window.location
+      // Isso evita problemas com o Next.js router em contexto de autenticação
+      window.location.href = redirectTo.startsWith('/') 
+        ? window.location.origin + redirectTo
+        : redirectTo;
       
     } catch (error) {
       console.error('Erro durante o login:', error);
@@ -155,16 +156,17 @@ function LoginContent() {
           type: 'error',
           text: result.error || 'Erro ao acessar modo demonstração.'
         });
+        setIsLoading(false);
         return;
       }
       
-      router.push('/dashboard');
+      // Forçar redirecionamento usando window.location
+      window.location.href = window.location.origin + '/dashboard';
     } catch (error) {
       setLoginMessage({
         type: 'error',
         text: 'Erro ao acessar modo demonstração.'
       });
-    } finally {
       setIsLoading(false);
     }
   };
