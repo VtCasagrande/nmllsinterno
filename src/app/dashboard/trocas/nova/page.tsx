@@ -5,54 +5,121 @@ import { useRouter } from 'next/navigation';
 import { useTrocas } from '@/contexts/TrocasContext';
 import { TrocaTipo } from '@/types/trocas';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, RefreshCw } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useForm } from 'react-hook-form';
+import * as z from 'zod';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Definir schema de validação com Zod
+const formSchema = z.object({
+  tipo: z.enum([TrocaTipo.ENVIADA, TrocaTipo.RECEBIDA], {
+    required_error: "Selecione o tipo de troca",
+  }),
+  ean: z.string().min(1, {
+    message: "O código EAN/SKU é obrigatório",
+  }),
+  nomeProduto: z.string().min(1, {
+    message: "O nome do produto é obrigatório",
+  }),
+  quantidade: z.coerce.number().int().positive({
+    message: "A quantidade deve ser um número positivo",
+  }),
+  lojaParceira: z.string().min(1, {
+    message: "O nome da loja parceira é obrigatório",
+  }),
+  responsavel: z.string().min(1, {
+    message: "O nome do responsável é obrigatório",
+  }),
+  telefoneResponsavel: z.string().min(1, {
+    message: "O telefone de contato é obrigatório",
+  }),
+  motivo: z.string().min(1, {
+    message: "O motivo da troca é obrigatório",
+  }),
+  observacoes: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
 
 export default function NovaTrocaPage() {
   const router = useRouter();
-  const { createTroca, error } = useTrocas();
+  const { createTroca } = useTrocas();
+  const { toast } = useToast();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    tipo: TrocaTipo.ENVIADA,
-    ean: '',
-    nomeProduto: '',
-    quantidade: 1,
-    lojaParceira: '',
-    responsavel: '',
-    telefoneResponsavel: '',
-    motivo: '',
-    observacoes: ''
+
+  // Inicializar o formulário com React Hook Form + Zod
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      tipo: TrocaTipo.ENVIADA,
+      ean: "",
+      nomeProduto: "",
+      quantidade: 1,
+      lojaParceira: "",
+      responsavel: user?.name || "",
+      telefoneResponsavel: "",
+      motivo: "",
+      observacoes: "",
+    },
   });
-  const [formError, setFormError] = useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: name === 'quantidade' ? parseInt(value) || 0 : value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setFormError(null);
-
-    // Validação básica
-    if (!formData.ean || !formData.nomeProduto || !formData.lojaParceira || !formData.responsavel) {
-      setFormError('Por favor, preencha todos os campos obrigatórios.');
-      return;
-    }
-
+  // Enviar o formulário
+  const onSubmit = async (values: FormValues) => {
     setIsSubmitting(true);
-
+    
     try {
-      await createTroca(formData);
-      router.push('/dashboard/trocas');
-    } catch (err) {
-      setFormError(err instanceof Error ? err.message : 'Ocorreu um erro ao criar a troca');
+      const success = await createTroca(values);
+      if (success) {
+        toast({
+          title: "Troca criada com sucesso",
+          description: "A nova troca foi registrada no sistema",
+          variant: "default",
+        });
+        router.push('/dashboard/trocas');
+      }
+    } catch (error) {
+      console.error('Erro ao criar troca:', error);
+      toast({
+        title: "Erro ao criar troca",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao registrar a troca",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="container mx-auto px-4">
+    <div className="container mx-auto px-4 py-6">
       <div className="flex items-center mb-6">
         <Link href="/dashboard/trocas" className="text-blue-600 hover:text-blue-800 mr-4">
           <ArrowLeft className="w-5 h-5" />
@@ -60,179 +127,204 @@ export default function NovaTrocaPage() {
         <h1 className="text-2xl font-bold">Nova Troca</h1>
       </div>
 
-      {(formError || error) && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-          <strong className="font-bold">Erro!</strong>
-          <span className="block sm:inline"> {formError || error}</span>
-        </div>
-      )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Registrar Nova Troca</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+              <div className="space-y-6">
+                {/* Tipo de Troca */}
+                <FormField
+                  control={form.control}
+                  name="tipo"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tipo de Troca</FormLabel>
+                      <Select 
+                        onValueChange={field.onChange} 
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Selecione o tipo de troca" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={TrocaTipo.ENVIADA}>Enviamos para outra loja</SelectItem>
+                          <SelectItem value={TrocaTipo.RECEBIDA}>Recebemos de outra loja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-      <div className="bg-white shadow rounded-lg p-6">
-        <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Tipo de Troca */}
-            <div className="col-span-1">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo de Troca *
-              </label>
-              <select
-                name="tipo"
-                value={formData.tipo}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                required
-              >
-                <option value={TrocaTipo.ENVIADA}>Enviamos para outra loja</option>
-                <option value={TrocaTipo.RECEBIDA}>Recebemos de outra loja</option>
-              </select>
-            </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Informações do Produto */}
+                  <div className="col-span-1 md:col-span-2">
+                    <h3 className="text-lg font-medium mb-4">Informações do Produto</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="ean"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Código EAN/SKU</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Digite o código do produto" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="nomeProduto"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome do Produto</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Digite o nome do produto" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="quantidade"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Quantidade</FormLabel>
+                            <FormControl>
+                              <Input 
+                                type="number" 
+                                min={1} 
+                                placeholder="Quantidade" 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
 
-            {/* Espaço vazio para manter o alinhamento na grid */}
-            <div className="col-span-1"></div>
+                  {/* Informações da Loja Parceira */}
+                  <div className="col-span-1 md:col-span-2">
+                    <h3 className="text-lg font-medium mb-4">Loja Parceira</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="lojaParceira"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nome da Loja</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Digite o nome da loja parceira" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="responsavel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Responsável</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nome do responsável" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="telefoneResponsavel"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Telefone de Contato</FormLabel>
+                            <FormControl>
+                              <Input placeholder="(00) 00000-0000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
 
-            {/* Informações do Produto */}
-            <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-200">
-              <h2 className="text-lg font-semibold mb-4">Informações do Produto</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Código EAN/SKU *
-                  </label>
-                  <input
-                    type="text"
-                    name="ean"
-                    value={formData.ean}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome do Produto *
-                  </label>
-                  <input
-                    type="text"
-                    name="nomeProduto"
-                    value={formData.nomeProduto}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Quantidade *
-                  </label>
-                  <input
-                    type="number"
-                    name="quantidade"
-                    value={formData.quantidade}
-                    onChange={handleChange}
-                    min="1"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
+                  {/* Detalhes Adicionais */}
+                  <div className="col-span-1 md:col-span-2">
+                    <h3 className="text-lg font-medium mb-4">Detalhes Adicionais</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="motivo"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Motivo da Troca</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Explique o motivo da troca" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="observacoes"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Observações (opcional)</FormLabel>
+                            <FormControl>
+                              <Textarea 
+                                placeholder="Informações adicionais sobre a troca" 
+                                className="resize-none" 
+                                rows={3} 
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Informações da Loja Parceira */}
-            <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-200">
-              <h2 className="text-lg font-semibold mb-4">Loja Parceira</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nome da Loja *
-                  </label>
-                  <input
-                    type="text"
-                    name="lojaParceira"
-                    value={formData.lojaParceira}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Responsável *
-                  </label>
-                  <input
-                    type="text"
-                    name="responsavel"
-                    value={formData.responsavel}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Telefone de Contato *
-                  </label>
-                  <input
-                    type="text"
-                    name="telefoneResponsavel"
-                    value={formData.telefoneResponsavel}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  asChild
+                >
+                  <Link href="/dashboard/trocas">Cancelar</Link>
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                      Salvando...
+                    </>
+                  ) : (
+                    'Salvar Troca'
+                  )}
+                </Button>
               </div>
-            </div>
-
-            {/* Detalhes Adicionais */}
-            <div className="col-span-1 md:col-span-2 pt-4 border-t border-gray-200">
-              <h2 className="text-lg font-semibold mb-4">Detalhes Adicionais</h2>
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Motivo da Troca *
-                  </label>
-                  <input
-                    type="text"
-                    name="motivo"
-                    value={formData.motivo}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Observações
-                  </label>
-                  <textarea
-                    name="observacoes"
-                    value={formData.observacoes}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  ></textarea>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <Link
-              href="/dashboard/trocas"
-              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 mr-2 hover:bg-gray-50"
-            >
-              Cancelar
-            </Link>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-            >
-              {isSubmitting ? 'Salvando...' : 'Salvar Troca'}
-            </button>
-          </div>
-        </form>
-      </div>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

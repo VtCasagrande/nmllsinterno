@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo } from 'react';
 import { 
   Troca, 
   TrocaInput, 
@@ -19,6 +19,7 @@ import { useWebhooks } from './WebhooksContext';
 import { WebhookEventType, TrocaEventPayload } from '@/types/webhooks';
 import { toast } from 'react-hot-toast';
 import { useToast } from '@/components/ui/toast-provider';
+import { trocasService } from '@/services/trocasService';
 
 // Interface para o contexto
 interface TrocasContextProps {
@@ -27,7 +28,7 @@ interface TrocasContextProps {
   error: string | null;
   filtros: TrocaFiltros;
   setFiltros: (filtros: TrocaFiltros) => void;
-  getTrocas: () => Promise<Troca[]>;
+  getTrocas: () => Promise<void>;
   getTrocaById: (id: string) => Promise<Troca | null>;
   createTroca: (dados: TrocaInput) => Promise<Troca>;
   updateTroca: (id: string, dados: TrocaUpdate) => Promise<Troca>;
@@ -102,66 +103,60 @@ const TROCAS_MOCK: Troca[] = [
 
 // Provider component
 export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
-  const [trocas, setTrocas] = useState<Troca[]>(TROCAS_MOCK);
+  const [trocas, setTrocas] = useState<Troca[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const { profile } = useAuth();
-  const { dispararWebhook } = useWebhooks();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [filtros, setFiltros] = useState<TrocaFiltros>({});
 
-  // Carregar trocas do armazenamento local ao iniciar
+  // Carregar trocas do Supabase ao iniciar
   useEffect(() => {
-    const loadTrocas = () => {
-      try {
-        const savedTrocas = localStorage.getItem('trocas');
-        if (savedTrocas) {
-          setTrocas(JSON.parse(savedTrocas));
-        }
-      } catch (err) {
-        console.error('Erro ao carregar trocas:', err);
-      }
-    };
-
-    loadTrocas();
+    getTrocas();
   }, []);
 
-  // Salvar trocas no armazenamento local quando mudar
-  useEffect(() => {
-    try {
-      localStorage.setItem('trocas', JSON.stringify(trocas));
-    } catch (err) {
-      console.error('Erro ao salvar trocas:', err);
-    }
-  }, [trocas]);
-
-  // Obter uma troca específica pelo ID
-  const getTroca = (id: string) => trocas.find(troca => troca.id === id);
-
-  // Obter uma troca pelo ID (da API)
-  const getTrocaById = async (id: string): Promise<Troca | null> => {
-    // Verificar se já temos a troca em memória
-    const trocaLocal = trocas.find(t => t.id === id);
-    if (trocaLocal) {
-      return trocaLocal;
-    }
-    
-    setLoading(true);
-    setError(null);
+  // Obter todas as trocas
+  const getTrocas = async (): Promise<void> => {
+    if (!user) return;
 
     try {
-      const response = await fetch(`/api/trocas/${id}`);
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao carregar troca');
-      }
-      
-      const data = await response.json();
-      return data;
+      setLoading(true);
+      setError(null);
+      const data = await trocasService.buscarTrocas();
+      setTrocas(data);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar troca';
+      console.error('Erro ao carregar trocas:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar trocas';
       setError(errorMessage);
-      throw err;
+      toast({
+        title: "Erro ao carregar trocas",
+        description: errorMessage,
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Obter uma troca pelo ID
+  const getTrocaById = async (id: string): Promise<Troca | null> => {
+    if (!user) return null;
+    
+    try {
+      setLoading(true);
+      setError(null);
+      const troca = await trocasService.buscarTrocaPorId(id);
+      return troca;
+    } catch (err) {
+      console.error(`Erro ao buscar troca ${id}:`, err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao buscar troca';
+      setError(errorMessage);
+      toast({
+        title: "Erro ao buscar troca",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      return null;
     } finally {
       setLoading(false);
     }
@@ -169,64 +164,37 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Criar uma nova troca
   const createTroca = async (dados: TrocaInput): Promise<Troca> => {
-    setLoading(true);
-    setError(null);
-
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+    
     try {
-      // Definir o status inicial baseado no tipo de troca
-      let statusInicial: TrocaStatus;
+      setLoading(true);
+      setError(null);
       
-      if (dados.tipo === TrocaTipo.ENVIADA) {
-        statusInicial = TrocaStatus.AGUARDANDO_DEVOLUCAO;
-      } else {
-        statusInicial = TrocaStatus.COLETADO;
-      }
+      const novaTroca = await trocasService.criarTroca(dados, user.id);
       
-      const response = await fetch('/api/trocas', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...dados,
-          status: statusInicial
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao criar troca');
-      }
-      
-      const novaTroca = await response.json();
-      
-      // Atualizar a lista de trocas em memória
+      // Atualizar o estado local
       setTrocas(prevTrocas => [...prevTrocas, novaTroca]);
       
-      // Disparar webhook para troca criada
-      const payload: TrocaEventPayload = {
-        evento: WebhookEventType.TROCA_CRIADA,
-        timestamp: new Date().toISOString(),
-        dados: {
-          trocaId: novaTroca.id,
-          tipo: novaTroca.tipo,
-          status: novaTroca.status,
-          ean: novaTroca.ean,
-          nomeProduto: novaTroca.nomeProduto,
-          lojaParceira: novaTroca.lojaParceira,
-          responsavel: novaTroca.responsavel,
-          telefoneResponsavel: novaTroca.telefoneResponsavel,
-          motivo: novaTroca.motivo,
-          dataAtualizacao: novaTroca.dataAtualizacao
-        }
-      };
-      
-      await dispararWebhook(WebhookEventType.TROCA_CRIADA, payload);
+      toast({
+        title: "Troca criada",
+        description: "A troca foi criada com sucesso",
+        variant: "default"
+      });
       
       return novaTroca;
     } catch (err) {
+      console.error('Erro ao criar troca:', err);
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao criar troca';
       setError(errorMessage);
+      
+      toast({
+        title: "Erro ao criar troca",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
       throw err;
     } finally {
       setLoading(false);
@@ -235,386 +203,366 @@ export const TrocasProvider: React.FC<TrocasProviderProps> = ({ children }) => {
 
   // Atualizar uma troca existente
   const updateTroca = async (id: string, dados: TrocaUpdate): Promise<Troca> => {
-    setLoading(true);
-    setError(null);
-
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+    
     try {
-      // Verifica se temos a troca em cache
-      const trocaExistente = trocas.find(t => t.id === id);
+      setLoading(true);
+      setError(null);
       
-      if (!trocaExistente) {
-        throw new Error(`Troca com ID ${id} não encontrada`);
-      }
+      const trocaAtualizada = await trocasService.atualizarTroca(id, dados, user.id);
       
-      // Atualiza a troca localmente primeiro para feedback imediato ao usuário
-      const trocaAtualizada = {
-        ...trocaExistente,
-        ...dados,
-        dataAtualizacao: new Date().toISOString()
-      };
-      
-      // Atualiza o estado local
+      // Atualizar o estado local
       setTrocas(prevTrocas => 
-        prevTrocas.map(t => (t.id === id ? trocaAtualizada : t))
+        prevTrocas.map(t => t.id === id ? trocaAtualizada : t)
       );
-
-      // Faz a requisição para a API
-      const response = await fetch(`/api/trocas/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(dados),
+      
+      toast({
+        title: "Troca atualizada",
+        description: "A troca foi atualizada com sucesso",
+        variant: "default"
       });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao atualizar troca');
-      }
-      
-      const responseData = await response.json();
-      
-      return responseData;
+      return trocaAtualizada;
     } catch (err) {
+      console.error(`Erro ao atualizar troca ${id}:`, err);
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao atualizar troca';
       setError(errorMessage);
+      
+      toast({
+        title: "Erro ao atualizar troca",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Finalizar uma troca (marcar como devolvida)
+  // Finalizar uma troca
   const finalizarTroca = async (id: string): Promise<Troca> => {
-    const troca = getTroca(id);
-    if (!troca) {
-      throw new Error(`Troca com ID ${id} não encontrada`);
+    if (!user) {
+      throw new Error('Usuário não autenticado');
     }
     
-    // Determinar o status final com base no tipo de troca
-    let status;
-    if (troca.tipo === TrocaTipo.ENVIADA) {
-      status = TrocaStatus.FINALIZADA;
-    } else {
-      status = TrocaStatus.FINALIZADA;
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const trocaFinalizada = await trocasService.finalizarTroca(id, user.id);
+      
+      // Atualizar o estado local
+      setTrocas(prevTrocas => 
+        prevTrocas.map(t => t.id === id ? trocaFinalizada : t)
+      );
+      
+      toast({
+        title: "Troca finalizada",
+        description: "A troca foi finalizada com sucesso",
+        variant: "default"
+      });
+      
+      return trocaFinalizada;
+    } catch (err) {
+      console.error(`Erro ao finalizar troca ${id}:`, err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao finalizar troca';
+      setError(errorMessage);
+      
+      toast({
+        title: "Erro ao finalizar troca",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      throw err;
+    } finally {
+      setLoading(false);
     }
-    
-    return await updateTroca(id, { status });
   };
 
   // Excluir uma troca
   const deleteTroca = async (id: string): Promise<boolean> => {
-    setLoading(true);
-    setError(null);
-
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
+    
     try {
-      const response = await fetch(`/api/trocas/${id}`, {
-        method: 'DELETE',
-      });
+      setLoading(true);
+      setError(null);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao excluir troca');
-      }
+      await trocasService.excluirTroca(id, user.id);
       
-      // Atualizar a lista de trocas em memória
+      // Atualizar o estado local
       setTrocas(prevTrocas => prevTrocas.filter(t => t.id !== id));
+      
+      toast({
+        title: "Troca excluída",
+        description: "A troca foi excluída com sucesso",
+        variant: "default"
+      });
       
       return true;
     } catch (err) {
+      console.error(`Erro ao excluir troca ${id}:`, err);
       const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao excluir troca';
       setError(errorMessage);
-      throw err;
+      
+      toast({
+        title: "Erro ao excluir troca",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Adicionar um comentário a uma troca
-  const addComentario = async (trocaId: string, comentarioData: ComentarioTrocaInput): Promise<ComentarioTroca> => {
-    setLoading(true);
-    setError(null);
+  // Adicionar comentário a uma troca
+  const addComentario = async (trocaId: string, comentario: ComentarioTrocaInput): Promise<ComentarioTroca> => {
+    if (!user) {
+      throw new Error('Usuário não autenticado');
+    }
     
     try {
-      const troca = getTroca(trocaId);
-      if (!troca) {
-        throw new Error(`Troca com ID ${trocaId} não encontrada`);
-      }
+      setLoading(true);
+      setError(null);
       
-      const now = new Date().toISOString();
+      const novoComentario = await trocasService.adicionarComentario(
+        trocaId, 
+        comentario.texto, 
+        user.id
+      );
       
-      const newComentario: ComentarioTroca = {
-        id: Date.now().toString(),
-        usuarioId: profile?.id || 'unknown',
-        usuarioNome: profile?.name || 'Usuário',
-        texto: comentarioData.texto,
-        dataCriacao: now
-      };
+      // Atualizar o estado local
+      setTrocas(prevTrocas => 
+        prevTrocas.map(t => {
+          if (t.id === trocaId) {
+            const comentariosAtualizados = [...(t.comentarios || []), novoComentario];
+            return { ...t, comentarios: comentariosAtualizados };
+          }
+          return t;
+        })
+      );
       
-      const updatedTroca = {
-        ...troca,
-        comentarios: [...(troca.comentarios || []), newComentario],
-        dataAtualizacao: now
-      };
+      toast({
+        title: "Comentário adicionado",
+        description: "Seu comentário foi adicionado com sucesso",
+        variant: "default"
+      });
       
-      setTrocas(prev => prev.map(t => t.id === trocaId ? updatedTroca : t));
+      return novoComentario;
+    } catch (err) {
+      console.error(`Erro ao adicionar comentário à troca ${trocaId}:`, err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao adicionar comentário';
+      setError(errorMessage);
       
-      // Disparar webhook quando comentário for adicionado
-      const payload: TrocaEventPayload = {
-        evento: WebhookEventType.TROCA_ATUALIZADA,
-        timestamp: now,
-        dados: {
-          trocaId: updatedTroca.id,
-          tipo: updatedTroca.tipo,
-          status: updatedTroca.status,
-          ean: updatedTroca.ean,
-          nomeProduto: updatedTroca.nomeProduto,
-          lojaParceira: updatedTroca.lojaParceira,
-          responsavel: updatedTroca.responsavel,
-          telefoneResponsavel: updatedTroca.telefoneResponsavel,
-          motivo: updatedTroca.motivo,
-          dataAtualizacao: updatedTroca.dataAtualizacao
-        }
-      };
+      toast({
+        title: "Erro ao adicionar comentário",
+        description: errorMessage,
+        variant: "destructive"
+      });
       
-      await dispararWebhook(WebhookEventType.TROCA_ATUALIZADA, payload);
-      
-      return newComentario;
-    } catch (err: any) {
-      setError(err.message || 'Erro ao adicionar comentário');
       throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Filtrar trocas com base nos critérios fornecidos
+  // Filtrar trocas baseado em critérios
   const filtrarTrocas = (filtro: TrocaFiltros): Troca[] => {
-    let trocasFiltradas = [...trocas];
-    
-    if (filtro.tipo && filtro.tipo.length > 0) {
-      trocasFiltradas = trocasFiltradas.filter(t => filtro.tipo?.includes(t.tipo));
+    if (!filtro || Object.keys(filtro).length === 0) {
+      return trocas;
     }
-    
-    if (filtro.status && filtro.status.length > 0) {
-      trocasFiltradas = trocasFiltradas.filter(t => filtro.status?.includes(t.status as any));
-    }
-    
-    if (filtro.lojaParceira) {
-      trocasFiltradas = trocasFiltradas.filter(t => 
-        t.lojaParceira.toLowerCase().includes(filtro.lojaParceira!.toLowerCase())
-      );
-    }
-    
-    if (filtro.nomeProduto) {
-      trocasFiltradas = trocasFiltradas.filter(t => 
-        t.nomeProduto.toLowerCase().includes(filtro.nomeProduto!.toLowerCase())
-      );
-    }
-    
-    if (filtro.responsavel) {
-      trocasFiltradas = trocasFiltradas.filter(t => 
-        t.responsavel.toLowerCase().includes(filtro.responsavel!.toLowerCase())
-      );
-    }
-    
-    if (filtro.dataInicio) {
-      const dataInicio = new Date(filtro.dataInicio);
-      trocasFiltradas = trocasFiltradas.filter(t => new Date(t.dataCriacao) >= dataInicio);
-    }
-    
-    if (filtro.dataFim) {
-      const dataFim = new Date(filtro.dataFim);
-      dataFim.setHours(23, 59, 59, 999); // Fim do dia
-      trocasFiltradas = trocasFiltradas.filter(t => new Date(t.dataCriacao) <= dataFim);
-    }
-    
-    return trocasFiltradas;
+
+    return trocas.filter(troca => {
+      // Filtrar por tipo
+      if (filtro.tipo && troca.tipo !== filtro.tipo) {
+        return false;
+      }
+      
+      // Filtrar por status
+      if (filtro.status && troca.status !== filtro.status) {
+        return false;
+      }
+      
+      // Filtrar por EAN
+      if (filtro.ean && !troca.ean.toLowerCase().includes(filtro.ean.toLowerCase())) {
+        return false;
+      }
+      
+      // Filtrar por nome do produto
+      if (filtro.nomeProduto && !troca.nomeProduto.toLowerCase().includes(filtro.nomeProduto.toLowerCase())) {
+        return false;
+      }
+      
+      // Filtrar por loja parceira
+      if (filtro.lojaParceira && !troca.lojaParceira.toLowerCase().includes(filtro.lojaParceira.toLowerCase())) {
+        return false;
+      }
+      
+      // Filtrar por responsável
+      if (filtro.responsavel && !troca.responsavel.toLowerCase().includes(filtro.responsavel.toLowerCase())) {
+        return false;
+      }
+      
+      // Filtrar por período
+      if (filtro.dataInicio && filtro.dataFim) {
+        const dataCriacao = new Date(troca.dataCriacao);
+        const dataInicio = new Date(filtro.dataInicio);
+        const dataFim = new Date(filtro.dataFim);
+        
+        if (dataCriacao < dataInicio || dataCriacao > dataFim) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
   };
 
-  // Exportar trocas filtradas para CSV
+  // Gerar arquivo CSV para exportação
   const exportarTrocas = async (filtro: TrocaFiltros): Promise<string> => {
     const trocasFiltradas = filtrarTrocas(filtro);
     
-    // Cabeçalhos do CSV
+    // Cabeçalho do CSV
     const headers = [
-      'ID', 
-      'Tipo', 
-      'Status', 
-      'Data de Criação', 
-      'Última Atualização', 
-      'Data de Finalização',
-      'EAN', 
-      'Nome do Produto', 
-      'Loja Parceira', 
-      'Responsável', 
-      'Telefone', 
-      'Motivo', 
-      'Observação'
+      'ID', 'Tipo', 'Status', 'EAN', 'Produto', 'Quantidade',
+      'Loja Parceira', 'Responsável', 'Telefone',
+      'Motivo', 'Observações', 'Data de Criação', 'Data de Atualização'
     ];
     
-    // Função auxiliar para formatar datas
+    // Função para formatar data
     const formatDate = (dateStr?: string) => {
       if (!dateStr) return '';
       const date = new Date(dateStr);
-      return date.toLocaleDateString('pt-BR');
+      return date.toLocaleString('pt-BR');
     };
     
-    // Função para obter label do status
+    // Função para obter o label do status
     const getStatusLabel = (tipo: TrocaTipo, status: string) => {
-      // Retornar o status formatado para exibição
-      if (status === TrocaStatus.AGUARDANDO_DEVOLUCAO) {
-        return 'Aguardando Devolução';
-      } else if (status === TrocaStatus.COLETADO) {
-        return 'Coletado';
-      } else if (status === TrocaStatus.FINALIZADA) {
-        return 'Finalizada';
-      } else if (status === TrocaStatus.CANCELADA) {
-        return 'Cancelada';
+      if (tipo === TrocaTipo.ENVIADA) {
+        if (status === TrocaStatus.AGUARDANDO_DEVOLUCAO) return 'Aguardando Devolução';
+        if (status === TrocaStatus.FINALIZADA) return 'Finalizada';
+        if (status === TrocaStatus.CANCELADA) return 'Cancelada';
+      } else {
+        if (status === TrocaStatus.COLETADO) return 'Item Coletado';
+        if (status === TrocaStatus.FINALIZADA) return 'Finalizada';
+        if (status === TrocaStatus.CANCELADA) return 'Cancelada';
       }
       return status;
     };
     
-    // Função auxiliar para obter label do tipo
+    // Função para obter o label do tipo
     const getTipoLabel = (tipo: TrocaTipo) => {
       return tipo === TrocaTipo.ENVIADA ? 'Enviada' : 'Recebida';
     };
     
-    // Função para escapar campos CSV
+    // Função para escapar texto no CSV
     const escapeCsv = (field: string) => {
       if (field === null || field === undefined) return '';
-      return `"${String(field).replace(/"/g, '""')}"`;
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
     };
     
-    // Converter trocas para linhas CSV
+    // Linha de cabeçalho
     let csv = headers.join(',') + '\n';
+    
+    // Adicionar dados
     trocasFiltradas.forEach(troca => {
-      csv += [
-        troca.id,
+      const row = [
+        escapeCsv(troca.id),
         escapeCsv(getTipoLabel(troca.tipo)),
         escapeCsv(getStatusLabel(troca.tipo, troca.status)),
-        troca.ean,
+        escapeCsv(troca.ean),
         escapeCsv(troca.nomeProduto),
-        troca.quantidade.toString(),
+        escapeCsv(String(troca.quantidade)),
         escapeCsv(troca.lojaParceira),
         escapeCsv(troca.responsavel),
-        escapeCsv(troca.telefoneResponsavel),
+        escapeCsv(troca.telefoneResponsavel || ''),
         escapeCsv(troca.motivo),
-        formatDate(troca.dataCriacao)
-      ].join(',') + '\n';
+        escapeCsv(troca.observacoes || ''),
+        escapeCsv(formatDate(troca.dataCriacao)),
+        escapeCsv(formatDate(troca.dataAtualizacao))
+      ];
+      
+      csv += row.join(',') + '\n';
     });
     
     return csv;
   };
 
-  // Buscar todas as trocas
-  const getTrocas = async (): Promise<Troca[]> => {
-    // Evitar chamadas desnecessárias se já tivermos dados
-    if (trocas.length > 0 && !loading) {
-      return trocas;
+  // Atualizar o status de uma troca
+  const updateTrocaStatus = async (id: string, status: TrocaStatus): Promise<boolean> => {
+    if (!user) {
+      throw new Error('Usuário não autenticado');
     }
     
-    setLoading(true);
-    setError(null);
-
     try {
-      const response = await fetch('/api/trocas');
+      setLoading(true);
+      setError(null);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Erro ao carregar trocas');
-      }
+      await trocasService.atualizarStatusTroca(id, status, user.id);
       
-      const data = await response.json();
-      console.log('Dados recebidos da API:', data);
-      data.forEach((troca: Troca) => {
-        console.log(`Troca ${troca.id} - tipo: ${troca.tipo}, status: ${troca.status}`);
+      // Atualizar o estado local
+      setTrocas(prevTrocas => 
+        prevTrocas.map(t => t.id === id ? { ...t, status } : t)
+      );
+      
+      toast({
+        title: "Status atualizado",
+        description: "O status da troca foi atualizado com sucesso",
+        variant: "default"
       });
-      setTrocas(data);
-      return data;
+      
+      return true;
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao carregar trocas';
+      console.error(`Erro ao atualizar status da troca ${id}:`, err);
+      const errorMessage = err instanceof Error ? err.message : 'Erro desconhecido ao atualizar status';
       setError(errorMessage);
-      throw err;
+      
+      toast({
+        title: "Erro ao atualizar status",
+        description: errorMessage,
+        variant: "destructive"
+      });
+      
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  // Atualizar o status de uma troca
-  const updateTrocaStatus = async (id: string, status: TrocaStatus): Promise<boolean> => {
-    try {
-      console.log(`Tentando atualizar troca ${id} para status ${status}`);
-      
-      // Verificar se a troca existe na lista local
-      const trocaExistente = trocas.find(t => t.id === id);
-      if (!trocaExistente) {
-        console.error(`Troca com ID ${id} não encontrada na lista local`);
-        throw new Error(`Troca com ID ${id} não encontrada`);
-      }
-
-      // Atualizar a lista local imediatamente para feedback ao usuário
-      setTrocas((trocasAtuais) => {
-        return trocasAtuais.map((troca) => {
-          if (troca.id === id) {
-            console.log(`Atualizando troca ${id} na lista local para status ${status}`);
-            return { ...troca, status, dataAtualizacao: new Date().toISOString() };
-          }
-          return troca;
-        });
-      });
-
-      // Fazer a requisição para a API
-      const response = await fetch(`/api/trocas/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Erro ao atualizar status: ${response.statusText}`);
-      }
-
-      const trocaAtualizada = await response.json();
-      console.log('Resposta da API após atualização:', trocaAtualizada);
-      
-      // Recarregar a lista de trocas para sincronizar com o servidor
-      await getTrocas();
-      
-      toast.success('Status atualizado com sucesso!');
-      return true;
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error(`Erro ao atualizar status: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-      
-      // Recarregar as trocas para restaurar o estado correto
-      await getTrocas();
-      return false;
-    }
-  };
+  // Trocas filtradas com base nos filtros atuais
+  const trocasFiltradas = useMemo(() => {
+    return filtrarTrocas(filtros);
+  }, [trocas, filtros]);
 
   return (
-    <TrocasContext.Provider
-      value={{
-        trocas,
-        loading,
-        error,
-        filtros,
-        setFiltros,
-        getTrocas,
-        getTrocaById,
-        createTroca,
-        updateTroca,
-        deleteTroca,
-        addComentario,
-        filtrarTrocas,
-        exportarTrocas,
-        finalizarTroca,
-        updateTrocaStatus
-      }}
-    >
+    <TrocasContext.Provider value={{
+      trocas: trocasFiltradas,
+      loading,
+      error,
+      filtros,
+      setFiltros,
+      getTrocas,
+      getTrocaById,
+      createTroca,
+      updateTroca,
+      deleteTroca,
+      addComentario,
+      filtrarTrocas,
+      exportarTrocas,
+      finalizarTroca,
+      updateTrocaStatus
+    }}>
       {children}
     </TrocasContext.Provider>
   );

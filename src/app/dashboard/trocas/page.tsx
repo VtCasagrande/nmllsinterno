@@ -1,226 +1,350 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
 import { useTrocas } from '@/contexts/TrocasContext';
-import { Troca, TrocaStatus, TrocaTipo, TrocaUpdate } from '@/types/trocas';
+import { TrocaStatus, TrocaTipo, Troca } from '@/types/trocas';
+import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
+import Link from 'next/link';
+import {
+  Calendar,
+  CheckCircle,
+  Clock,
+  Download,
+  FileText,
+  Filter,
+  Plus,
+  RefreshCw,
+  Search,
+  Tag,
+  XCircle,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+} from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Check, Clock, Search, Truck, AlertCircle, Plus, Filter, Eye, Edit, X, RefreshCw } from 'lucide-react';
-import { toast } from 'react-hot-toast';
 
 export default function TrocasPage() {
-  const { trocas, getTrocas, updateTroca, updateTrocaStatus, loading, error } = useTrocas();
-  const [filteredTrocas, setFilteredTrocas] = useState<Troca[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const { trocas, getTrocas, updateTrocaStatus, loading, error, filtros, setFiltros } = useTrocas();
+  const { user } = useAuth();
+  const { toast } = useToast();
+  
+  const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [filters, setFilters] = useState({
-    tipo: '',
-    status: '',
+  const [quicklookTroca, setQuicklookTroca] = useState<Troca | null>(null);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<() => Promise<void>>(() => async () => {});
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportFilters, setExportFilters] = useState({
     dataInicio: '',
     dataFim: '',
+    tipo: '',
+    status: '',
+    lojaParceira: '',
   });
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const [quicklookTroca, setQuicklookTroca] = useState<Troca | null>(null);
-  const [atualizando, setAtualizando] = useState(false);
-  const [atualizandoId, setAtualizandoId] = useState<string | null>(null);
-
+  
+  // Carregar trocas ao iniciar
   useEffect(() => {
-    if (!dataLoaded) {
-      const loadTrocas = async () => {
-        try {
-          await getTrocas();
-          setDataLoaded(true);
-        } catch (err) {
-          console.error('Erro ao carregar trocas:', err);
-          setDataLoaded(true);
+    const loadData = async () => {
+      try {
+        await getTrocas();
+      } catch (error) {
+        console.error('Erro ao carregar trocas:', error);
+      }
+    };
+    
+    loadData();
+  }, [getTrocas]);
+  
+  // Aplicar filtro de busca
+  const filteredTrocas = trocas.filter((troca) => {
+    if (!searchQuery) return true;
+    
+    const query = searchQuery.toLowerCase();
+    return (
+      troca.ean.toLowerCase().includes(query) ||
+      troca.nomeProduto.toLowerCase().includes(query) ||
+      troca.lojaParceira.toLowerCase().includes(query) ||
+      troca.responsavel.toLowerCase().includes(query)
+    );
+  });
+  
+  // Atualizar status da troca (com confirmação)
+  const handleUpdateStatus = (id: string, status: TrocaStatus) => {
+    const troca = trocas.find(t => t.id === id);
+    if (!troca) return;
+    
+    let mensagem = '';
+    
+    if (status === TrocaStatus.FINALIZADA) {
+      mensagem = 'Finalizar esta troca? Isso não poderá ser desfeito.';
+    } else if (status === TrocaStatus.CANCELADA) {
+      mensagem = 'Cancelar esta troca? Isso não poderá ser desfeito.';
+    } else if (troca.tipo === TrocaTipo.ENVIADA && status === TrocaStatus.AGUARDANDO_DEVOLUCAO) {
+      mensagem = 'Marcar esta troca como aguardando devolução?';
+    } else if (troca.tipo === TrocaTipo.RECEBIDA && status === TrocaStatus.COLETADO) {
+      mensagem = 'Marcar esta troca como coletada?';
+    }
+    
+    setConfirmMessage(mensagem);
+    setConfirmAction(() => async () => {
+      try {
+        const success = await updateTrocaStatus(id, status);
+        if (success) {
+          toast({
+            title: "Status atualizado",
+            description: "O status da troca foi atualizado com sucesso",
+            variant: "default"
+          });
         }
-      };
-
-      loadTrocas();
-    }
-  }, [getTrocas, dataLoaded]);
-
-  useEffect(() => {
-    if (!trocas) return;
-
-    console.log('Trocas disponíveis:', trocas);
-    console.log('Filtro tipo atual:', filters.tipo);
-    console.log('Valor TrocaTipo.ENVIADA:', TrocaTipo.ENVIADA);
-    console.log('Valor TrocaTipo.RECEBIDA:', TrocaTipo.RECEBIDA);
-
-    let filtered = [...trocas];
-
-    // Aplicar filtros
-    if (filters.tipo) {
-      console.log('Aplicando filtro por tipo:', filters.tipo);
-      filtered = filtered.filter((troca) => {
-        console.log('Comparando:', troca.tipo, '===', filters.tipo, troca.tipo === filters.tipo);
-        return troca.tipo === filters.tipo;
-      });
-      console.log('Resultado após filtro por tipo:', filtered);
-    }
-
-    if (filters.status) {
-      filtered = filtered.filter((troca) => troca.status === filters.status);
-    }
-
-    if (filters.dataInicio) {
-      const dataInicio = new Date(filters.dataInicio);
-      filtered = filtered.filter(
-        (troca) => new Date(troca.dataCriacao) >= dataInicio
-      );
-    }
-
-    if (filters.dataFim) {
-      const dataFim = new Date(filters.dataFim);
-      dataFim.setHours(23, 59, 59);
-      filtered = filtered.filter(
-        (troca) => new Date(troca.dataCriacao) <= dataFim
-      );
-    }
-
-    // Aplicar busca
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (troca) =>
-          troca.nomeProduto.toLowerCase().includes(term) ||
-          troca.ean.toLowerCase().includes(term) ||
-          troca.lojaParceira.toLowerCase().includes(term) ||
-          troca.responsavel.toLowerCase().includes(term)
-      );
-    }
-
-    setFilteredTrocas(filtered);
-  }, [trocas, searchTerm, filters]);
-
-  const handleFilterChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFilters((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      tipo: '',
-      status: '',
-      dataInicio: '',
-      dataFim: '',
+      } catch (error) {
+        console.error('Erro ao atualizar status:', error);
+        toast({
+          title: "Erro ao atualizar status",
+          description: "Não foi possível atualizar o status da troca",
+          variant: "destructive"
+        });
+      }
     });
-    setSearchTerm('');
+    
+    setConfirmDialogOpen(true);
   };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return format(date, 'dd/MM/yyyy', { locale: ptBR });
+  
+  // Exportar trocas como CSV
+  const handleExport = async () => {
+    try {
+      const { exportarTrocas } = useTrocas();
+      
+      const csvContent = await exportarTrocas({
+        tipo: exportFilters.tipo ? exportFilters.tipo as TrocaTipo : undefined,
+        status: exportFilters.status ? exportFilters.status as TrocaStatus : undefined,
+        lojaParceira: exportFilters.lojaParceira || undefined,
+        dataInicio: exportFilters.dataInicio || undefined,
+        dataFim: exportFilters.dataFim || undefined,
+      });
+      
+      // Criar blob e link para download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.setAttribute('href', url);
+      link.setAttribute('download', `trocas_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setExportModalOpen(false);
+      toast({
+        title: "Exportação concluída",
+        description: "O arquivo CSV foi gerado com sucesso",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Erro ao exportar trocas:', error);
+      toast({
+        title: "Erro na exportação",
+        description: "Não foi possível exportar as trocas",
+        variant: "destructive"
+      });
+    }
   };
-
-  // Transforma o status no formato de visualização para o usuário
-  const formatarStatus = (status: TrocaStatus): string => {
-    switch (status) {
-      case TrocaStatus.AGUARDANDO_DEVOLUCAO:
+  
+  // Obter a cor do status da troca
+  const getStatusColor = (tipo: TrocaTipo, status: TrocaStatus): string => {
+    if (status === TrocaStatus.FINALIZADA) {
+      return 'bg-green-100 text-green-800 border-green-300';
+    } else if (status === TrocaStatus.CANCELADA) {
+      return 'bg-red-100 text-red-800 border-red-300';
+    }
+    
+    if (tipo === TrocaTipo.ENVIADA) {
+      return 'bg-blue-100 text-blue-800 border-blue-300';
+    } else {
+      return 'bg-purple-100 text-purple-800 border-purple-300';
+    }
+  };
+  
+  // Obter o label do status da troca
+  const getStatusLabel = (tipo: TrocaTipo, status: TrocaStatus): string => {
+    if (status === TrocaStatus.FINALIZADA) {
+      return 'Finalizada';
+    } else if (status === TrocaStatus.CANCELADA) {
+      return 'Cancelada';
+    }
+    
+    if (tipo === TrocaTipo.ENVIADA) {
+      if (status === TrocaStatus.AGUARDANDO_DEVOLUCAO) {
         return 'Aguardando Devolução';
-      case TrocaStatus.COLETADO:
-        return 'Coletado';
-      case TrocaStatus.FINALIZADA:
-        return 'Finalizado';
-      case TrocaStatus.CANCELADA:
-        return 'Cancelado';
-      default:
-        return status;
+      }
+    } else {
+      if (status === TrocaStatus.COLETADO) {
+        return 'Item Coletado';
+      }
     }
+    
+    return status.replace('_', ' ');
   };
-
-  const getStatusBadge = (status: TrocaStatus) => {
-    switch (status) {
-      case TrocaStatus.AGUARDANDO_DEVOLUCAO:
-        return (
-          <span className="flex items-center px-2 py-1 text-xs font-medium rounded-full bg-orange-100 text-orange-800">
-            <Clock className="w-3 h-3 mr-1" />
-            {formatarStatus(status)}
-          </span>
-        );
-      case TrocaStatus.COLETADO:
-        return (
-          <span className="flex items-center px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
-            <Truck className="w-3 h-3 mr-1" />
-            {formatarStatus(status)}
-          </span>
-        );
-      case TrocaStatus.FINALIZADA:
-        return (
-          <span className="flex items-center px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
-            <Check className="w-3 h-3 mr-1" />
-            {formatarStatus(status)}
-          </span>
-        );
-      case TrocaStatus.CANCELADA:
-        return (
-          <span className="flex items-center px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800">
-            <AlertCircle className="w-3 h-3 mr-1" />
-            {formatarStatus(status)}
-          </span>
-        );
-      default:
-        return <span>{formatarStatus(status)}</span>;
+  
+  // Renderizar a lista de trocas
+  const renderTrocasList = () => {
+    if (loading) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((index) => (
+            <Card key={index} className="animate-pulse">
+              <CardHeader className="pb-2">
+                <Skeleton className="h-5 w-1/2 mb-2" />
+                <Skeleton className="h-4 w-1/4" />
+              </CardHeader>
+              <CardContent>
+                <Skeleton className="h-4 w-3/4 mb-2" />
+                <Skeleton className="h-4 w-full mb-2" />
+                <Skeleton className="h-4 w-2/3" />
+              </CardContent>
+              <CardFooter>
+                <Skeleton className="h-9 w-full" />
+              </CardFooter>
+            </Card>
+          ))}
+        </div>
+      );
     }
-  };
-
-  const handleQuicklook = (troca: Troca) => {
-    setQuicklookTroca(troca);
-  };
-
-  const closeQuicklook = () => {
-    setQuicklookTroca(null);
-  };
-
-  const handleFinalizar = async (id: string) => {
-    try {
-      setAtualizando(true);
-      setAtualizandoId(id);
-      console.log(`Finalizando troca ${id}`);
-      await updateTrocaStatus(id, TrocaStatus.FINALIZADA);
-      toast.success('Troca finalizada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao finalizar troca:', error);
-      toast.error('Erro ao finalizar troca');
-    } finally {
-      setAtualizando(false);
-      setAtualizandoId(null);
-      closeQuicklook();
+    
+    if (error) {
+      return (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
+          <strong className="font-bold">Erro!</strong>
+          <span className="block sm:inline"> {error}</span>
+          <Button 
+            variant="outline" 
+            onClick={() => getTrocas()}
+            className="mt-2"
+          >
+            <RefreshCw className="mr-2 h-4 w-4" /> Tentar novamente
+          </Button>
+        </div>
+      );
     }
-  };
-
-  const handleCancelar = async (id: string) => {
-    try {
-      setAtualizando(true);
-      setAtualizandoId(id);
-      console.log(`Cancelando troca ${id}`);
-      await updateTrocaStatus(id, TrocaStatus.CANCELADA);
-      toast.success('Troca cancelada com sucesso!');
-    } catch (error) {
-      console.error('Erro ao cancelar troca:', error);
-      toast.error('Erro ao cancelar troca');
-    } finally {
-      setAtualizando(false);
-      setAtualizandoId(null);
-      closeQuicklook();
+    
+    if (filteredTrocas.length === 0) {
+      return (
+        <div className="text-center p-8 bg-gray-50 rounded-lg border border-gray-200">
+          <FileText className="mx-auto h-10 w-10 text-gray-400 mb-2" />
+          <h3 className="text-lg font-medium text-gray-900 mb-1">Nenhuma troca encontrada</h3>
+          <p className="text-gray-500">
+            {searchQuery || Object.keys(filtros).length > 0
+              ? 'Tente ajustar seus filtros ou critérios de busca'
+              : 'Clique em "Nova Troca" para começar'}
+          </p>
+        </div>
+      );
     }
-  };
-
-  const handleAtualizarStatus = async (id: string, novoStatus: TrocaStatus) => {
-    try {
-      setAtualizandoId(id);
-      setAtualizando(true);
-      await updateTrocaStatus(id, novoStatus);
-      toast.success(`Status atualizado para ${formatarStatus(novoStatus)}`);
-    } catch (error) {
-      console.error('Erro ao atualizar status:', error);
-      toast.error('Erro ao atualizar status');
-    } finally {
-      setAtualizando(false);
-      setAtualizandoId(null);
-    }
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredTrocas.map((troca) => (
+          <Card key={troca.id} className="overflow-hidden">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg">{troca.nomeProduto}</CardTitle>
+                  <CardDescription>EAN: {troca.ean}</CardDescription>
+                </div>
+                <div 
+                  className={`px-2 py-1 rounded-full text-xs font-medium border 
+                  ${getStatusColor(troca.tipo, troca.status)}`}
+                >
+                  {getStatusLabel(troca.tipo, troca.status)}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-2">
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Tipo:</span>
+                  <span className="font-medium">
+                    {troca.tipo === TrocaTipo.ENVIADA ? 'Enviada' : 'Recebida'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Loja:</span>
+                  <span className="font-medium">{troca.lojaParceira}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Data:</span>
+                  <span className="font-medium">
+                    {format(new Date(troca.dataCriacao), 'dd/MM/yyyy', { locale: ptBR })}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+            <CardFooter className="flex justify-between pt-2">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setQuicklookTroca(troca)}
+              >
+                Visualizar
+              </Button>
+              <div className="space-x-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                >
+                  <Link href={`/dashboard/trocas/${troca.id}`}>
+                    Detalhes
+                  </Link>
+                </Button>
+                {troca.status !== TrocaStatus.FINALIZADA && troca.status !== TrocaStatus.CANCELADA && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUpdateStatus(troca.id, TrocaStatus.FINALIZADA)}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" /> Finalizar
+                  </Button>
+                )}
+              </div>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -239,9 +363,9 @@ export default function TrocasPage() {
       {/* Navegação rápida por tipo */}
       <div className="flex mb-6 space-x-4">
         <button
-          onClick={() => setFilters(prev => ({ ...prev, tipo: '' }))}
+          onClick={() => setFiltros(prev => ({ ...prev, tipo: undefined }))}
           className={`px-4 py-2 rounded-md transition-colors ${
-            filters.tipo === '' 
+            !filtros.tipo 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
@@ -249,9 +373,9 @@ export default function TrocasPage() {
           Todas
         </button>
         <button
-          onClick={() => setFilters(prev => ({ ...prev, tipo: TrocaTipo.ENVIADA }))}
+          onClick={() => setFiltros(prev => ({ ...prev, tipo: TrocaTipo.ENVIADA }))}
           className={`px-4 py-2 rounded-md transition-colors ${
-            filters.tipo === TrocaTipo.ENVIADA 
+            filtros.tipo === TrocaTipo.ENVIADA 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
@@ -259,9 +383,9 @@ export default function TrocasPage() {
           Enviadas
         </button>
         <button
-          onClick={() => setFilters(prev => ({ ...prev, tipo: TrocaTipo.RECEBIDA }))}
+          onClick={() => setFiltros(prev => ({ ...prev, tipo: TrocaTipo.RECEBIDA }))}
           className={`px-4 py-2 rounded-md transition-colors ${
-            filters.tipo === TrocaTipo.RECEBIDA 
+            filtros.tipo === TrocaTipo.RECEBIDA 
               ? 'bg-blue-600 text-white' 
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
@@ -270,402 +394,291 @@ export default function TrocasPage() {
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
-          <strong className="font-bold">Erro!</strong>
-          <span className="block sm:inline"> {error}</span>
+      {/* Barra de pesquisa e filtros */}
+      <div className="mb-6 flex flex-col md:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+          <Input
+            type="text"
+            placeholder="Buscar por EAN, produto, loja..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
         </div>
-      )}
-
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
-            <div className="relative flex-grow max-w-md">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <Search className="w-5 h-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Buscar por produto, EAN, loja..."
-              />
-            </div>
-
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200"
-            >
-              <Filter className="w-4 h-4 mr-2" />
-              {showFilters ? 'Ocultar Filtros' : 'Mostrar Filtros'}
-            </button>
-          </div>
-
-          {showFilters && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">
-                  Tipo de Troca
-                </label>
-                <select
-                  id="tipo"
-                  name="tipo"
-                  value={filters.tipo}
-                  onChange={handleFilterChange}
-                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Todos</option>
-                  <option value={TrocaTipo.ENVIADA}>Enviamos para outra loja</option>
-                  <option value={TrocaTipo.RECEBIDA}>Recebemos de outra loja</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
-                </label>
-                <select
-                  id="status"
-                  name="status"
-                  value={filters.status}
-                  onChange={handleFilterChange}
-                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Todos</option>
-                  <option value={TrocaStatus.AGUARDANDO_DEVOLUCAO}>Aguardando Devolução</option>
-                  <option value={TrocaStatus.COLETADO}>Coletado</option>
-                  <option value={TrocaStatus.FINALIZADA}>Finalizado</option>
-                  <option value={TrocaStatus.CANCELADA}>Cancelado</option>
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="dataInicio" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Inicial
-                </label>
-                <input
-                  type="date"
-                  id="dataInicio"
-                  name="dataInicio"
-                  value={filters.dataInicio}
-                  onChange={handleFilterChange}
-                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label htmlFor="dataFim" className="block text-sm font-medium text-gray-700 mb-1">
-                  Data Final
-                </label>
-                <input
-                  type="date"
-                  id="dataFim"
-                  name="dataFim"
-                  value={filters.dataFim}
-                  onChange={handleFilterChange}
-                  className="w-full border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-
-              <div className="md:col-span-4 flex justify-end">
-                <button
-                  onClick={clearFilters}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50"
-                >
-                  Limpar Filtros
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="mr-2 h-4 w-4" />
+            Filtros
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => setExportModalOpen(true)}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => getTrocas()}
+          >
+            <RefreshCw className="h-4 w-4" />
+            <span className="sr-only">Atualizar</span>
+          </Button>
         </div>
-
-        {loading ? (
-          <div className="flex justify-center items-center p-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-          </div>
-        ) : filteredTrocas.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">
-            <p className="mb-2 text-lg">Nenhuma troca encontrada</p>
-            <p className="text-sm">
-              {trocas.length === 0
-                ? 'Não há trocas registradas. Clique em "Nova Troca" para adicionar.'
-                : 'Nenhum resultado encontrado com os filtros aplicados.'}
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Produto
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Tipo
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Loja Parceira
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Responsável
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Data
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Ações
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredTrocas.map((troca) => (
-                  <tr key={troca.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div>
-                          <div className="text-sm font-medium text-gray-900">
-                            {troca.nomeProduto}
-                          </div>
-                          <div className="text-xs text-gray-500">EAN: {troca.ean}</div>
-                          <div className="text-xs text-gray-500">Quantidade: {troca.quantidade}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {troca.tipo === TrocaTipo.ENVIADA ? 'Enviada' : 'Recebida'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{troca.lojaParceira}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{troca.responsavel}</div>
-                      <div className="text-xs text-gray-500">{troca.telefoneResponsavel}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{formatDate(troca.dataCriacao)}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center group relative">
-                        {getStatusBadge(troca.status)}
-                        
-                        {/* Botão para mudar o status */}
-                        {!atualizando && (
-                          <button 
-                            className="ml-2 text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
-                            title="Alterar status"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setQuicklookTroca(troca);
-                            }}
-                          >
-                            <RefreshCw className="w-4 h-4" />
-                          </button>
-                        )}
-                        
-                        {atualizando && atualizandoId === troca.id && (
-                          <span className="ml-2">
-                            <span className="animate-spin h-4 w-4 border-t-2 border-b-2 border-blue-500 rounded-full inline-block"></span>
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => handleQuicklook(troca)}
-                          className="text-gray-600 hover:text-gray-900"
-                          title="Visualização rápida"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </button>
-                        <Link
-                          href={`/dashboard/trocas/${troca.id}`}
-                          className="text-blue-600 hover:text-blue-900"
-                          title="Ver detalhes"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
-      {/* Modal de Quicklook */}
-      {quicklookTroca && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-gray-200 p-4">
-              <h2 className="text-xl font-semibold">Detalhes da Troca</h2>
-              <button 
-                onClick={closeQuicklook} 
-                className="text-gray-500 hover:text-gray-800"
+      {showFilters && (
+        <div className="mb-6 p-4 bg-gray-50 rounded-md border">
+          <h3 className="font-medium mb-3">Filtros Avançados</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Status
+              </label>
+              <Select 
+                value={filtros.status || ''} 
+                onValueChange={(value) => 
+                  setFiltros(prev => ({ 
+                    ...prev, 
+                    status: value ? value as TrocaStatus : undefined 
+                  }))
+                }
               >
-                <X className="w-6 h-6" />
-              </button>
+                <SelectTrigger>
+                  <SelectValue placeholder="Todos os status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Todos os status</SelectItem>
+                  <SelectItem value={TrocaStatus.AGUARDANDO_DEVOLUCAO}>Aguardando Devolução</SelectItem>
+                  <SelectItem value={TrocaStatus.COLETADO}>Coletado</SelectItem>
+                  <SelectItem value={TrocaStatus.FINALIZADA}>Finalizada</SelectItem>
+                  <SelectItem value={TrocaStatus.CANCELADA}>Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium">{quicklookTroca.nomeProduto}</h3>
-                <div>{getStatusBadge(quicklookTroca.status)}</div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-500">Código EAN</p>
-                  <p className="font-medium">{quicklookTroca.ean}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Quantidade</p>
-                  <p className="font-medium">{quicklookTroca.quantidade}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Tipo de Troca</p>
-                  <p className="font-medium">
-                    {quicklookTroca.tipo === TrocaTipo.ENVIADA ? 'Enviada para outra loja' : 'Recebida de outra loja'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Loja Parceira</p>
-                  <p className="font-medium">{quicklookTroca.lojaParceira}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Responsável</p>
-                  <p className="font-medium">{quicklookTroca.responsavel}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Telefone</p>
-                  <p className="font-medium">{quicklookTroca.telefoneResponsavel}</p>
-                </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm text-gray-500">Motivo da Troca</p>
-                  <p className="font-medium">{quicklookTroca.motivo}</p>
-                </div>
-                {quicklookTroca.observacoes && (
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-500">Observações</p>
-                    <p className="font-medium">{quicklookTroca.observacoes}</p>
-                  </div>
-                )}
-                <div>
-                  <p className="text-sm text-gray-500">Data de Criação</p>
-                  <p className="font-medium">{formatDate(quicklookTroca.dataCriacao)}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500">Última Atualização</p>
-                  <p className="font-medium">{formatDate(quicklookTroca.dataAtualizacao)}</p>
-                </div>
-              </div>
-
-              {/* Opções de mudança de status */}
-              <div className="border-t border-gray-200 pt-4">
-                <h4 className="text-md font-medium mb-3">Alterar Status</h4>
-                
-                <div className="grid grid-cols-2 gap-2 mb-4">
-                  {quicklookTroca.tipo === TrocaTipo.ENVIADA && (
-                    <>
-                      <button
-                        className={`px-3 py-2 rounded-md text-sm flex items-center justify-center ${
-                          quicklookTroca.status === TrocaStatus.AGUARDANDO_DEVOLUCAO 
-                            ? 'bg-orange-100 text-orange-800 font-medium border-2 border-orange-300' 
-                            : 'bg-gray-100 hover:bg-orange-50 text-gray-700'
-                        }`}
-                        onClick={() => handleAtualizarStatus(quicklookTroca.id, TrocaStatus.AGUARDANDO_DEVOLUCAO)}
-                        disabled={atualizando || quicklookTroca.status === TrocaStatus.AGUARDANDO_DEVOLUCAO}
-                      >
-                        <Clock className="w-4 h-4 mr-1" />
-                        Aguardando Devolução
-                      </button>
-                      <button
-                        className={`px-3 py-2 rounded-md text-sm flex items-center justify-center ${
-                          quicklookTroca.status === TrocaStatus.FINALIZADA 
-                            ? 'bg-green-100 text-green-800 font-medium border-2 border-green-300' 
-                            : 'bg-gray-100 hover:bg-green-50 text-gray-700'
-                        }`}
-                        onClick={() => handleAtualizarStatus(quicklookTroca.id, TrocaStatus.FINALIZADA)}
-                        disabled={atualizando || quicklookTroca.status === TrocaStatus.FINALIZADA}
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Finalizado
-                      </button>
-                    </>
-                  )}
-                  
-                  {quicklookTroca.tipo === TrocaTipo.RECEBIDA && (
-                    <>
-                      <button
-                        className={`px-3 py-2 rounded-md text-sm flex items-center justify-center ${
-                          quicklookTroca.status === TrocaStatus.COLETADO 
-                            ? 'bg-blue-100 text-blue-800 font-medium border-2 border-blue-300' 
-                            : 'bg-gray-100 hover:bg-blue-50 text-gray-700'
-                        }`}
-                        onClick={() => handleAtualizarStatus(quicklookTroca.id, TrocaStatus.COLETADO)}
-                        disabled={atualizando || quicklookTroca.status === TrocaStatus.COLETADO}
-                      >
-                        <Truck className="w-4 h-4 mr-1" />
-                        Coletado
-                      </button>
-                      <button
-                        className={`px-3 py-2 rounded-md text-sm flex items-center justify-center ${
-                          quicklookTroca.status === TrocaStatus.FINALIZADA 
-                            ? 'bg-green-100 text-green-800 font-medium border-2 border-green-300' 
-                            : 'bg-gray-100 hover:bg-green-50 text-gray-700'
-                        }`}
-                        onClick={() => handleAtualizarStatus(quicklookTroca.id, TrocaStatus.FINALIZADA)}
-                        disabled={atualizando || quicklookTroca.status === TrocaStatus.FINALIZADA}
-                      >
-                        <Check className="w-4 h-4 mr-1" />
-                        Finalizado
-                      </button>
-                    </>
-                  )}
-                  
-                  {/* Este botão é comum para ambos os tipos */}
-                  <button
-                    className={`px-3 py-2 rounded-md text-sm flex items-center justify-center col-span-2 ${
-                      quicklookTroca.status === TrocaStatus.CANCELADA 
-                        ? 'bg-red-100 text-red-800 font-medium border-2 border-red-300' 
-                        : 'bg-gray-100 hover:bg-red-50 text-gray-700'
-                    }`}
-                    onClick={() => handleAtualizarStatus(quicklookTroca.id, TrocaStatus.CANCELADA)}
-                    disabled={atualizando || quicklookTroca.status === TrocaStatus.CANCELADA}
-                  >
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    Cancelar
-                  </button>
-                </div>
-                
-                {atualizando && (
-                  <div className="mt-2 flex items-center text-gray-600">
-                    <span className="animate-spin h-5 w-5 mr-2 border-t-2 border-b-2 border-blue-500 rounded-full"></span>
-                    Atualizando...
-                  </div>
-                )}
-              </div>
-              
-              <div className="flex justify-end mt-6">
-                <Link
-                  href={`/dashboard/trocas/${quicklookTroca.id}`}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                >
-                  Ver Página Completa
-                </Link>
-              </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loja Parceira
+              </label>
+              <Input 
+                placeholder="Digite o nome da loja"
+                value={filtros.lojaParceira || ''}
+                onChange={(e) => 
+                  setFiltros(prev => ({ 
+                    ...prev, 
+                    lojaParceira: e.target.value || undefined 
+                  }))
+                }
+              />
+            </div>
+            <div className="md:col-span-1">
+              <Button 
+                variant="outline" 
+                className="mt-6 w-full"
+                onClick={() => setFiltros({})}
+              >
+                Limpar Filtros
+              </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Lista de trocas */}
+      {renderTrocasList()}
+
+      {/* Modal de visualização rápida */}
+      <Dialog open={!!quicklookTroca} onOpenChange={(open) => !open && setQuicklookTroca(null)}>
+        {quicklookTroca && (
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{quicklookTroca.nomeProduto}</DialogTitle>
+            </DialogHeader>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+              <div>
+                <p className="text-sm text-gray-500">Código EAN</p>
+                <p className="font-medium">{quicklookTroca.ean}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Quantidade</p>
+                <p className="font-medium">{quicklookTroca.quantidade}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Tipo de Troca</p>
+                <p className="font-medium">
+                  {quicklookTroca.tipo === TrocaTipo.ENVIADA ? 'Enviada para outra loja' : 'Recebida de outra loja'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Loja Parceira</p>
+                <p className="font-medium">{quicklookTroca.lojaParceira}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Responsável</p>
+                <p className="font-medium">{quicklookTroca.responsavel}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Telefone</p>
+                <p className="font-medium">{quicklookTroca.telefoneResponsavel}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-sm text-gray-500">Motivo da Troca</p>
+                <p className="font-medium">{quicklookTroca.motivo}</p>
+              </div>
+              {quicklookTroca.observacoes && (
+                <div className="md:col-span-2">
+                  <p className="text-sm text-gray-500">Observações</p>
+                  <p className="font-medium">{quicklookTroca.observacoes}</p>
+                </div>
+              )}
+            </div>
+            
+            <DialogFooter>
+              <div className="w-full flex justify-between">
+                <Button 
+                  variant="outline"
+                  onClick={() => setQuicklookTroca(null)}
+                >
+                  Fechar
+                </Button>
+                <Button 
+                  variant="default"
+                  asChild
+                >
+                  <Link href={`/dashboard/trocas/${quicklookTroca.id}`}>
+                    Ver Detalhes
+                  </Link>
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        )}
+      </Dialog>
+
+      {/* Diálogo de confirmação para ações */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar ação</AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirmMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              confirmAction().then(() => setConfirmDialogOpen(false));
+            }}>
+              Confirmar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Modal de exportação */}
+      <Dialog open={exportModalOpen} onOpenChange={setExportModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar Trocas</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Inicial
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <Input
+                    type="date"
+                    className="pl-10"
+                    value={exportFilters.dataInicio}
+                    onChange={(e) => setExportFilters(prev => ({ ...prev, dataInicio: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Data Final
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+                  <Input
+                    type="date"
+                    className="pl-10"
+                    value={exportFilters.dataFim}
+                    onChange={(e) => setExportFilters(prev => ({ ...prev, dataFim: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo
+                </label>
+                <Select 
+                  value={exportFilters.tipo}
+                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, tipo: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos os tipos</SelectItem>
+                    <SelectItem value={TrocaTipo.ENVIADA}>Enviadas</SelectItem>
+                    <SelectItem value={TrocaTipo.RECEBIDA}>Recebidas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Status
+                </label>
+                <Select 
+                  value={exportFilters.status}
+                  onValueChange={(value) => setExportFilters(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Todos os status</SelectItem>
+                    <SelectItem value={TrocaStatus.AGUARDANDO_DEVOLUCAO}>Aguardando Devolução</SelectItem>
+                    <SelectItem value={TrocaStatus.COLETADO}>Coletado</SelectItem>
+                    <SelectItem value={TrocaStatus.FINALIZADA}>Finalizada</SelectItem>
+                    <SelectItem value={TrocaStatus.CANCELADA}>Cancelada</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Loja Parceira
+              </label>
+              <Input 
+                placeholder="Digite o nome da loja (opcional)"
+                value={exportFilters.lojaParceira}
+                onChange={(e) => setExportFilters(prev => ({ ...prev, lojaParceira: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              Exportar CSV
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
