@@ -147,3 +147,4 @@ export const Avatar = ({ children }: { children: ReactNode }) => {
 export const AvatarGroup = ({ children }: { children: ReactNode }) => {
   return <div className="flex -space-x-2">{children}</div>;
 };
+

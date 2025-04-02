@@ -1,123 +1,157 @@
 'use client';
 
-import { ArrowUpRight, Package, Truck, Users } from 'lucide-react';
-import Link from 'next/link';
+import React, { useState, useEffect } from 'react';
+import { Search, User, Bell, Menu } from 'lucide-react';
 import ProtectedRoute from '@/components/ProtectedRoute';
-
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  icon: React.ReactNode;
-  linkText: string;
-  href: string;
-}
-
-function StatCard({ title, value, icon, linkText, href }: StatCardProps) {
-  return (
-    <div className="bg-white p-6 rounded-lg shadow-sm border">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-sm text-gray-500 font-medium">{title}</p>
-          <p className="text-2xl font-bold mt-1">{value}</p>
-        </div>
-        <div className="p-2 bg-blue-50 rounded-full text-blue-500">
-          {icon}
-        </div>
-      </div>
-      <Link
-        href={href}
-        className="flex items-center mt-4 text-sm text-blue-600 font-medium hover:underline"
-      >
-        {linkText}
-        <ArrowUpRight size={16} className="ml-1" />
-      </Link>
-    </div>
-  );
-}
+import { useAuth } from '@/contexts/AuthContext';
+import { useFavorites } from '@/contexts/FavoritesContext';
+import { AppIcon } from '@/components/AppIcon';
+import { AppCategory } from '@/components/AppCategory';
+import { 
+  appModules, 
+  appCategories, 
+  getModulesByCategory, 
+  filterModulesByRole 
+} from '@/utils/appRegistry';
 
 export default function DashboardPage() {
+  const { profile } = useAuth();
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredModules, setFilteredModules] = useState(appModules);
+
+  // Filtra os módulos quando o termo de busca muda
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredModules(appModules);
+      return;
+    }
+
+    const lowercaseTerm = searchTerm.toLowerCase();
+    const filtered = appModules.filter(
+      module => 
+        module.name.toLowerCase().includes(lowercaseTerm) || 
+        module.description.toLowerCase().includes(lowercaseTerm)
+    );
+    
+    setFilteredModules(filtered);
+  }, [searchTerm]);
+
+  // Filtra os favoritos baseado na role do usuário
+  const userFavorites = filterModulesByRole(
+    appModules.filter(module => favorites.includes(module.id)),
+    profile?.role
+  );
+
+  // Filtra os módulos por categoria e role
+  const getAccessibleModulesByCategory = (categoryId: string) => {
+    return filterModulesByRole(
+      getModulesByCategory(categoryId),
+      profile?.role
+    );
+  };
+
+  const handleToggleFavorite = (id: string) => (e: React.MouseEvent) => {
+    toggleFavorite(id);
+  };
+
   return (
     <ProtectedRoute>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Bem-vindo ao sistema de gestão da Nmalls</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard
-            title="Entregas Pendentes"
-            value={12}
-            icon={<Truck size={24} />}
-            linkText="Ver entregas"
-            href="/dashboard/entregas/rotas"
-          />
-          <StatCard
-            title="Devoluções"
-            value={5}
-            icon={<Package size={24} />}
-            linkText="Ver devoluções"
-            href="/dashboard/devolucoes/registro"
-          />
-          <StatCard
-            title="Motoristas Ativos"
-            value={8}
-            icon={<Users size={24} />}
-            linkText="Ver motoristas"
-            href="/dashboard/entregas/rastreamento"
-          />
-          <StatCard
-            title="Usuários"
-            value={15}
-            icon={<Users size={24} />}
-            linkText="Gerenciar usuários"
-            href="/dashboard/usuarios"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4">Atividades Recentes</h2>
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((item) => (
-                <div key={item} className="border-b pb-3 last:border-0 last:pb-0">
-                  <p className="text-sm">
-                    <span className="font-medium">Usuário {item}</span> realizou uma ação no sistema
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">Há {item} hora(s)</p>
-                </div>
-              ))}
-            </div>
-            <Link
-              href="/dashboard/logs"
-              className="flex items-center mt-4 text-sm text-blue-600 font-medium hover:underline"
-            >
-              Ver todos os logs
-              <ArrowUpRight size={16} className="ml-1" />
-            </Link>
+      <div className="container mx-auto pb-16">
+        {/* Cabeçalho */}
+        <header className="flex justify-between items-center py-4 px-4 md:px-0">
+          <div className="flex items-center">
+            <Menu className="md:hidden w-5 h-5 mr-3" />
+            <h1 className="text-2xl font-bold">Dashboard</h1>
           </div>
-
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <h2 className="text-lg font-semibold mb-4">Próximas Entregas</h2>
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map((item) => (
-                <div key={item} className="border-b pb-3 last:border-0 last:pb-0">
-                  <p className="text-sm">
-                    <span className="font-medium">Rota #{item + 100}</span> - {item} produto(s)
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">Agendado para hoje</p>
-                </div>
-              ))}
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <Bell className="w-5 h-5 text-gray-600" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center">
+                3
+              </span>
             </div>
-            <Link
-              href="/dashboard/entregas/rotas"
-              className="flex items-center mt-4 text-sm text-blue-600 font-medium hover:underline"
-            >
-              Ver todas as rotas
-              <ArrowUpRight size={16} className="ml-1" />
-            </Link>
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white">
+              <User className="w-5 h-5" />
+            </div>
+          </div>
+        </header>
+
+        {/* Barra de pesquisa */}
+        <div className="px-4 md:px-0 mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Pesquisar aplicativos..."
+              className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-100"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
+        
+        {/* Favoritos */}
+        {userFavorites.length > 0 && !searchTerm && (
+          <AppCategory title="Favoritos" className="mb-8">
+            {userFavorites.map((app) => (
+              <AppIcon
+                key={app.id}
+                href={app.href}
+                icon={app.icon}
+                label={app.name}
+                color={app.color}
+                isFavorite={isFavorite(app.id)}
+                onToggleFavorite={handleToggleFavorite(app.id)}
+              />
+            ))}
+          </AppCategory>
+        )}
+        
+        {/* Aplicativos filtrados pela pesquisa */}
+        {searchTerm && (
+          <AppCategory title="Resultados da Pesquisa">
+            {filteredModules.length > 0 ? (
+              filterModulesByRole(filteredModules, profile?.role).map((app) => (
+                <AppIcon
+                  key={app.id}
+                  href={app.href}
+                  icon={app.icon}
+                  label={app.name}
+                  color={app.color}
+                  isFavorite={isFavorite(app.id)}
+                  onToggleFavorite={handleToggleFavorite(app.id)}
+                />
+              ))
+            ) : (
+              <div className="col-span-full py-4 text-center text-gray-500">
+                Nenhum aplicativo encontrado para "{searchTerm}"
+              </div>
+            )}
+          </AppCategory>
+        )}
+        
+        {/* Aplicativos por categoria */}
+        {!searchTerm && appCategories.map((category) => {
+          const categoryModules = getAccessibleModulesByCategory(category.id);
+          if (categoryModules.length === 0) return null;
+          
+          return (
+            <AppCategory key={category.id} title={category.name}>
+              {categoryModules.map((app) => (
+                <AppIcon
+                  key={app.id}
+                  href={app.href}
+                  icon={app.icon}
+                  label={app.name}
+                  color={app.color}
+                  isFavorite={isFavorite(app.id)}
+                  onToggleFavorite={handleToggleFavorite(app.id)}
+                />
+              ))}
+            </AppCategory>
+          );
+        })}
       </div>
     </ProtectedRoute>
   );
