@@ -1,7 +1,56 @@
 'use client';
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import { WebhookEventType, WebhookStatus, Webhook } from '@/types/webhooks';
+
+// Enums para os tipos de eventos e status
+export enum WebhookEventType {
+  ENTREGA_EM_ROTA = 'entrega_em_rota',
+  ENTREGA_ENTREGUE = 'entrega_entregue',
+  ENTREGA_CANCELADA = 'entrega_cancelada',
+  ENTREGA_PROBLEMA = 'entrega_problema',
+  DEVOLUCAO_INICIADA = 'devolucao_iniciada',
+  DEVOLUCAO_APROVADA = 'devolucao_aprovada',
+  DEVOLUCAO_REJEITADA = 'devolucao_rejeitada',
+  SUGESTAO_CRIADA = 'sugestao_criada',
+  SUGESTAO_PEDIDO_REALIZADO = 'sugestao_pedido_realizado',
+  SUGESTAO_PRODUTO_CHEGOU = 'sugestao_produto_chegou',
+  TROCA_CRIADA = 'troca_criada',
+  TROCA_ATUALIZADA = 'troca_atualizada',
+  TROCA_FINALIZADA = 'troca_finalizada',
+  // Novos eventos para reembolsos
+  REEMBOLSO_CRIADO = 'reembolso_criado',
+  REEMBOLSO_ATUALIZADO = 'reembolso_atualizado',
+  REEMBOLSO_STATUS_ATUALIZADO = 'reembolso_status_atualizado',
+  REEMBOLSO_EXCLUIDO = 'reembolso_excluido',
+  // Eventos de Lembretes de Medicamentos
+  LEMBRETE_MEDICAMENTO_CRIADO = 'lembrete_medicamento_criado',
+  LEMBRETE_MEDICAMENTO_ATUALIZADO = 'lembrete_medicamento_atualizado',
+  LEMBRETE_MEDICAMENTO_ENVIADO = 'lembrete_medicamento_enviado',
+  LEMBRETE_MEDICAMENTO_FINALIZADO = 'lembrete_medicamento_finalizado',
+  // Eventos de Bugs
+  BUG_REPORTADO = 'bug_reportado',
+  BUG_ATUALIZADO = 'bug_atualizado',
+  BUG_RESOLVIDO = 'bug_resolvido'
+}
+
+// Status do webhook
+export enum WebhookStatus {
+  ATIVO = 'ativo',
+  INATIVO = 'inativo'
+}
+
+// Interface para o webhook
+export interface Webhook {
+  id: string;
+  nome: string;
+  url: string;
+  evento: WebhookEventType;
+  status: WebhookStatus;
+  headers?: Record<string, string>;
+  ultimoDisparo?: string;
+  ultimoStatusCode?: number;
+  chaveSecreta?: string;
+}
 
 // Interface para o contexto de webhooks
 interface WebhooksContextType {
