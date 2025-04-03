@@ -837,16 +837,10 @@ export default function DetalhesEntrega() {
   const handleAlterarStatus = async (novoStatus: StatusEntrega) => {
     if (!profile?.id) {
       toast({
-        title: "Erro de autenticação",
-        description: "É necessário estar autenticado para alterar o status",
+        title: "Erro",
+        description: "Você precisa estar autenticado para realizar esta operação",
         variant: "destructive"
       });
-      return;
-    }
-    
-    // Verificar se é uma finalização de entrega
-    if (novoStatus === StatusEntrega.ENTREGUE) {
-      setShowFormFinalizar(true);
       return;
     }
     

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Interface para o banco de dados simulado
 interface UserFavorites {
-  [userId: string]: string[];  // Mapa de ID do usuário para lista de favoritos
+  [id: string]: string[];  // Mapa de ID do usuário para lista de favoritos
 }
 
 // Função de log melhorada para exibir no console
@@ -31,11 +31,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const userId = params.id;
-    logDebug(`Recebida solicitação GET para favoritos do usuário ID: ${userId}`);
+    const id = params.id;
+    logDebug(`Recebida solicitação GET para favoritos do usuário ID: ${id}`);
     
     // Validação básica
-    if (!userId) {
+    if (!id) {
       logError('ID de usuário não fornecido');
       return NextResponse.json(
         { error: 'ID de usuário não fornecido' },
@@ -44,8 +44,8 @@ export async function GET(
     }
     
     // Recupera os favoritos do usuário do banco de dados simulado
-    const userFavorites = userFavoritesDB[userId] || [];
-    logDebug(`Favoritos encontrados para o usuário ${userId}:`, userFavorites);
+    const userFavorites = userFavoritesDB[id] || [];
+    logDebug(`Favoritos encontrados para o usuário ${id}:`, userFavorites);
     
     // Retorna os favoritos do usuário
     return NextResponse.json({ favorites: userFavorites });
@@ -64,11 +64,11 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const userId = params.id;
-    logDebug(`Recebida solicitação PUT para favoritos do usuário ID: ${userId}`);
+    const id = params.id;
+    logDebug(`Recebida solicitação PUT para favoritos do usuário ID: ${id}`);
     
     // Validação básica
-    if (!userId) {
+    if (!id) {
       logError('ID de usuário não fornecido');
       return NextResponse.json(
         { error: 'ID de usuário não fornecido' },
@@ -90,15 +90,15 @@ export async function PUT(
     }
     
     // Atualiza os favoritos do usuário no banco de dados simulado
-    userFavoritesDB[userId] = body.favorites;
-    logDebug(`Favoritos atualizados para o usuário ${userId}:`, userFavoritesDB[userId]);
+    userFavoritesDB[id] = body.favorites;
+    logDebug(`Favoritos atualizados para o usuário ${id}:`, userFavoritesDB[id]);
     
     // Simula um pequeno atraso para reproduzir o comportamento de um banco de dados real
     await new Promise(resolve => setTimeout(resolve, 300));
     
     // Retorna os favoritos atualizados
     return NextResponse.json({ 
-      favorites: userFavoritesDB[userId],
+      favorites: userFavoritesDB[id],
       message: 'Favoritos atualizados com sucesso' 
     });
   } catch (error) {
