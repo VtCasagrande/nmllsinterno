@@ -10,8 +10,15 @@ COPY package*.json ./
 # Instalar dependências
 RUN npm ci
 
+# Instalar explicitamente o tailwindcss, postcss e autoprefixer
+RUN npm install --save tailwindcss postcss autoprefixer
+
 # Copiar o restante dos arquivos
 COPY . .
+
+# Garantir que os arquivos de configuração do tailwind estejam presentes
+RUN if [ ! -f tailwind.config.js ]; then npx tailwindcss init; fi
+RUN if [ ! -f postcss.config.js ]; then echo "module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }" > postcss.config.js; fi
 
 # Construir o aplicativo
 RUN npm run build
@@ -30,6 +37,9 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/tailwind.config.js ./
+COPY --from=builder /app/postcss.config.js ./
 
 # Expor a porta que o Next.js usa
 EXPOSE 3000
