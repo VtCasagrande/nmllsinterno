@@ -6,8 +6,6 @@ import {
   Clock, CheckCircle, AlertTriangle, XCircle 
 } from 'lucide-react';
 import Link from 'next/link';
-import { useWebhooks } from '@/contexts/WebhooksContext';
-import { WebhookEventType } from '@/types/webhooks';
 
 // Enum para status do bug
 enum BugStatus {
@@ -164,7 +162,6 @@ export default function ListarBugsPage() {
   const [ordenacao, setOrdenacao] = useState<'dataCriacao' | 'severidade'>('dataCriacao');
   const [direcao, setDirecao] = useState<'asc' | 'desc'>('desc');
   const [isLoading, setIsLoading] = useState(true);
-  const { dispararWebhook } = useWebhooks();
 
   useEffect(() => {
     // Carregar bugs do localStorage
@@ -230,32 +227,6 @@ export default function ListarBugsPage() {
     
     // Em produção, enviaria para uma API
     console.log('Bug atualizado:', id, status, resolucao);
-
-    // Encontrar o bug atualizado
-    const bugAtualizado = bugsAtualizados.find(bug => bug.id === id);
-    if (bugAtualizado) {
-      // Disparar webhook de acordo com o status
-      const eventoTipo = status === BugStatus.ARRUMADO 
-        ? WebhookEventType.BUG_RESOLVIDO 
-        : WebhookEventType.BUG_ATUALIZADO;
-      
-      dispararWebhook(eventoTipo, {
-        evento: eventoTipo,
-        timestamp: new Date().toISOString(),
-        dados: {
-          bugId: bugAtualizado.id,
-          titulo: bugAtualizado.titulo,
-          descricao: bugAtualizado.descricao,
-          severidade: bugAtualizado.severidade,
-          status: bugAtualizado.status,
-          reportadoPor: 'Administrador',
-          dataReporte: bugAtualizado.dataOcorrencia,
-          dataCriacao: bugAtualizado.dataCriacao,
-          ultimaAtualizacao: new Date().toISOString(),
-          resolucao: bugAtualizado.resolucao
-        }
-      });
-    }
   };
 
   return (

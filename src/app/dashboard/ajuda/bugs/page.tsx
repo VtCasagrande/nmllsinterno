@@ -3,8 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, Bug, Check } from 'lucide-react';
-import { useWebhooks } from '@/contexts/WebhooksContext';
-import { WebhookEventType } from '@/types/webhooks';
 
 // Enum para status do bug
 enum BugStatus {
@@ -33,7 +31,6 @@ interface Bug {
 
 export default function ReportarBugPage() {
   const router = useRouter();
-  const { dispararWebhook } = useWebhooks();
   const [formData, setFormData] = useState({
     titulo: '',
     descricao: '',
@@ -92,28 +89,6 @@ export default function ReportarBugPage() {
       
       bugs.push(bugCompleto);
       localStorage.setItem('bugs', JSON.stringify(bugs));
-      
-      // Disparar webhook através do contexto
-      try {
-        dispararWebhook(WebhookEventType.BUG_REPORTADO, {
-          evento: WebhookEventType.BUG_REPORTADO,
-          timestamp: new Date().toISOString(),
-          dados: {
-            bugId: bugCompleto.id,
-            titulo: bugCompleto.titulo,
-            descricao: bugCompleto.descricao,
-            severidade: bugCompleto.severidade,
-            status: bugCompleto.status,
-            reportadoPor: 'Usuário do Sistema',
-            dataReporte: bugCompleto.dataOcorrencia,
-            dataCriacao: bugCompleto.dataCriacao,
-            ultimaAtualizacao: bugCompleto.dataCriacao
-          }
-        });
-      } catch (webhookError) {
-        console.error('Erro ao disparar webhook:', webhookError);
-        // Não bloqueamos o fluxo em caso de erro no webhook
-      }
       
       // Mostrar mensagem de sucesso
       setSuccess(true);
