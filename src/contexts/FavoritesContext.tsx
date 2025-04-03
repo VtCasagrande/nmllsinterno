@@ -141,7 +141,19 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
         logDebug(`Carregando favoritos para usuário: ${profile.id}`);
         setIsLoading(true);
         
-        // Carrega os favoritos da API
+        // Primeiro tenta carregar do localStorage para feedback rápido
+        try {
+          const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
+          if (storedFavorites) {
+            const parsedFavorites = JSON.parse(storedFavorites);
+            logDebug('Favoritos recuperados do localStorage inicialmente:', parsedFavorites);
+            setFavorites(parsedFavorites);
+          }
+        } catch (localError) {
+          logError('Erro ao recuperar favoritos do localStorage:', localError);
+        }
+        
+        // Agora tenta carregar da API para ter os dados mais atualizados
         const userFavorites = await favoritesService.getFavorites(profile.id);
         
         logDebug(`${userFavorites.length} favoritos carregados com sucesso`);
@@ -149,21 +161,23 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
       } catch (error) {
         logError('Erro ao carregar favoritos do servidor:', error);
         
-        // Em caso de erro, tenta carregar do localStorage
-        try {
-          logDebug('Tentando recuperar favoritos do localStorage após erro');
-          const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
-          if (storedFavorites) {
-            const parsedFavorites = JSON.parse(storedFavorites);
-            logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
-            setFavorites(parsedFavorites);
-          } else {
-            logDebug('Nenhum favorito encontrado no localStorage, usando array vazio');
+        // Em caso de erro, tenta carregar do localStorage se ainda não tiver feito
+        if (favorites.length === 0) {
+          try {
+            logDebug('Tentando recuperar favoritos do localStorage após erro');
+            const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
+            if (storedFavorites) {
+              const parsedFavorites = JSON.parse(storedFavorites);
+              logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
+              setFavorites(parsedFavorites);
+            } else {
+              logDebug('Nenhum favorito encontrado no localStorage, usando array vazio');
+              setFavorites([]);
+            }
+          } catch (fallbackError) {
+            logError('Erro também no fallback:', fallbackError);
             setFavorites([]);
           }
-        } catch (fallbackError) {
-          logError('Erro também no fallback:', fallbackError);
-          setFavorites([]);
         }
       } finally {
         setIsLoading(false);
@@ -198,6 +212,9 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
         // Salva imediatamente no estado para feedback instantâneo ao usuário
         return newFavorites;
       });
+      
+      // Salvar imediatamente no localStorage
+      localStorage.setItem(`favorites-${profile.id}`, JSON.stringify(newFavorites));
       
       // Agora salva no servidor/API (assíncrono)
       const saved = await favoritesService.saveFavorites(profile.id, newFavorites);
