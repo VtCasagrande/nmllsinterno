@@ -3,10 +3,9 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import Script from 'next/script';
+import { RedirectHelper } from './redirectHelper';
 
 // Função de log melhorada para exibir no console
 const logDebug = (message: string, data?: any) => {
@@ -23,49 +22,6 @@ const logError = (message: string, error?: any) => {
   const timestamp = new Date().toISOString();
   console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
 };
-
-// Script inline para redirecionamento direto
-const redirectScript = `
-  (function() {
-    console.log("Verificando autenticação para redirecionamento direto");
-    
-    function checkAuthAndRedirect() {
-      // Verificar se estamos na página de login
-      if (!window.location.pathname.includes('/login')) return;
-      
-      try {
-        const supabaseKey = Object.keys(localStorage).find(key => 
-          key.startsWith('sb-') && key.includes('auth-token'));
-          
-        if (supabaseKey) {
-          console.log("Token de autenticação encontrado, redirecionando");
-          
-          const dashboardUrl = window.location.origin + '/dashboard';
-          console.log("Redirecionando para:", dashboardUrl);
-          
-          // Usar vários métodos de redirecionamento
-          try {
-            window.location.replace(dashboardUrl);
-          } catch (e) {
-            window.location.href = dashboardUrl;
-          }
-        }
-      } catch (e) {
-        console.error("Erro ao verificar autenticação:", e);
-      }
-    }
-    
-    // Verificar na carga da página
-    if (document.readyState === 'complete') {
-      checkAuthAndRedirect();
-    } else {
-      window.addEventListener('load', checkAuthAndRedirect);
-    }
-    
-    // Verificar novamente após um curto intervalo
-    setTimeout(checkAuthAndRedirect, 1000);
-  })();
-`;
 
 function LoginContent() {
   const [formData, setFormData] = useState({
@@ -125,16 +81,6 @@ function LoginContent() {
         type: 'success',
         text: decodeURIComponent(success)
       });
-    }
-
-    // Verificamos se há um token na URL (pode indicar um retorno de auth)
-    const hasAuthParams = window.location.hash && (
-      window.location.hash.includes('access_token') || 
-      window.location.hash.includes('error')
-    );
-
-    if (hasAuthParams) {
-      logDebug('Parâmetros de autenticação detectados na URL');
     }
   }, [searchParams]);
   
@@ -202,34 +148,8 @@ function LoginContent() {
         return;
       }
       
-      if (!data || !data.session) {
-        logError('Resposta do Supabase sem sessão');
-        setLoginMessage({
-          type: 'success',
-          text: 'Login bem-sucedido. Redirecionando...'
-        });
-        
-        // Se chegamos aqui, o login foi bem-sucedido.
-        const dashboardUrl = window.location.origin + '/dashboard';
-        logDebug('Login bem-sucedido, redirecionando para:', dashboardUrl);
-        
-        // Abordagem 1: Abrir em uma nova página e depois redirecionar esta
-        window.open(dashboardUrl, '_blank');
-        
-        // Abordagem 2: Usar setTimeout para dar um tempo antes de redirecionar
-        setTimeout(() => {
-          window.location.href = dashboardUrl;
-        }, 1000);
-        
-        // Mesmo com erro, mostrar mensagem de sucesso ao usuário
-        return;
-      }
-      
-      // Verificar se a sessão foi criada corretamente
-      logDebug('Login bem-sucedido:', {
-        userId: data.user?.id,
-        sessionId: data.session?.access_token.substring(0, 10) + '...',
-      });
+      // Sucesso no login
+      logDebug('Login bem-sucedido, redirecionando para página intermediária');
       
       // Mostrar mensagem de sucesso
       setLoginMessage({
@@ -237,16 +157,12 @@ function LoginContent() {
         text: 'Login bem-sucedido. Redirecionando...'
       });
       
-      // Abordagem simplificada: redirecionar diretamente para o dashboard
-      const dashboardUrl = window.location.origin + '/dashboard';
+      // Atualizar o estado para parar o loading
+      setIsLoading(false);
       
-      // Primeiro abrir em uma nova janela (como backup)
-      window.open(dashboardUrl, '_blank');
-      
-      // Depois tentar redirecionar nesta janela
-      setTimeout(() => {
-        window.location.href = dashboardUrl;
-      }, 1000);
+      // Redirecionar para a página intermediária de redirecionamento em vez de tentar redirecionar diretamente
+      // Esta abordagem é mais simples e evita o problema de redirecionamento
+      window.location.href = '/redirect-to-dashboard';
       
     } catch (error) {
       logError('Erro durante o login:', error);
@@ -264,26 +180,16 @@ function LoginContent() {
     }
   };
   
-  // Função para acessar como demonstração
+  // Função para acessar dashboard diretamente
   const acessarDashboardDiretamente = () => {
-    // Navegar diretamente para o dashboard
-    const dashboardUrl = window.location.origin + '/dashboard';
-    
-    // Abordagem 1: Abrir em uma nova aba
-    window.open(dashboardUrl, '_blank');
-    
-    // Abordagem 2: Redirecionar nesta janela
-    setTimeout(() => {
-      window.location.href = dashboardUrl;
-    }, 100);
+    // Simplesmente navegar para a página de redirecionamento
+    window.location.href = '/redirect-to-dashboard';
   };
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 sm:px-6 lg:px-8">
-      {/* Script de verificação de autenticação e redirecionamento */}
-      <Script id="auth-redirect" strategy="afterInteractive">
-        {redirectScript}
-      </Script>
+      {/* Componente auxiliar de redirecionamento */}
+      <RedirectHelper />
       
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
         <div className="text-center">
@@ -417,16 +323,6 @@ function LoginContent() {
             Novo em nosso sistema? <Link href="#" className="font-medium text-blue-600 hover:text-blue-500">Solicite seu acesso</Link>
           </p>
         </div>
-        
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 p-3 bg-gray-50 border border-gray-200 rounded-md">
-            <p className="text-xs text-gray-600 font-medium">Ambiente de desenvolvimento</p>
-            <p className="text-xs text-gray-500">
-              URL: {supabaseDetails.url}<br />
-              Key: {supabaseDetails.key}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
