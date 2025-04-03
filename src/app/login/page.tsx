@@ -132,17 +132,14 @@ function LoginContent() {
     try {
       logDebug(`Iniciando login para: ${formData.email}`);
       
-      // Login direto com Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.senha,
-      });
+      // Usar o método signIn do AuthContext em vez de chamar diretamente o Supabase
+      const { success, error } = await signIn(formData.email, formData.senha);
       
       if (error) {
-        logError('Erro na resposta do Supabase:', error);
+        logError('Erro na autenticação:', error);
         setLoginMessage({
           type: 'error',
-          text: error.message || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
+          text: error || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
         });
         setIsLoading(false);
         return;
