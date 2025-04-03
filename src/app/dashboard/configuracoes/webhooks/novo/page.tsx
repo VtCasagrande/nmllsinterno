@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWebhooks, WebhookEventType, WebhookStatus } from '@/contexts/WebhooksContext';
+import { useWebhooks, WebhookEventType, WebhookStatus } from '../mock/WebhooksContext';
 import Link from 'next/link';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 

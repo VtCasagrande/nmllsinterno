@@ -1,5 +1,18 @@
 import { useState } from 'react';
-import { useWebhooks, WebhookEventType } from '@/contexts/WebhooksContext';
+
+// Enum simples para evitar importações problemáticas
+export enum WebhookEventType {
+  LEMBRETE_MEDICAMENTO_ENVIADO = 'lembrete_medicamento_enviado'
+}
+
+// Simulação do hook useWebhooks
+const useWebhooksSimulado = () => {
+  return {
+    dispararWebhook: async (evento: WebhookEventType, payload: any) => {
+      console.log(`Disparando webhook para evento ${evento}`, payload);
+    }
+  };
+};
 
 export interface ProcessarLembretesResult {
   sucesso: boolean;
@@ -14,7 +27,7 @@ export interface ProcessarLembretesResult {
 export const useLembretesMedicamentos = () => {
   const [processando, setProcessando] = useState(false);
   const [resultadoProcessamento, setResultadoProcessamento] = useState<ProcessarLembretesResult | null>(null);
-  const { dispararWebhook } = useWebhooks();
+  const { dispararWebhook } = useWebhooksSimulado();
 
   /**
    * Processa manualmente os lembretes de medicamentos

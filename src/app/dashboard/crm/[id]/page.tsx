@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { useCRM, StatusCRM, AtendimentoCRM } from '@/contexts/CRMContext';
+import { useCRM, StatusCRM, AtendimentoCRM } from '../mock/CRMContext';
 import { 
   ArrowLeft, 
   Edit, 

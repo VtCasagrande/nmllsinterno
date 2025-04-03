@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Layers, Trash2, Plus, Link as LinkIcon, Check, Bug, AlertCircle } from 'lucide-react';
-import { useWebhooks, WebhookEventType } from '@/contexts/WebhooksContext';
+import { useWebhooks, WebhookEventType } from '../mock/WebhooksContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
