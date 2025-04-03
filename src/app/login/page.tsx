@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { RedirectHelper } from './redirectHelper';
 
 // Função de log melhorada para exibir no console
 const logDebug = (message: string, data?: any) => {
@@ -160,9 +159,6 @@ function LoginContent() {
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 sm:px-6 lg:px-8">
-      {/* Componente auxiliar de redirecionamento */}
-      <RedirectHelper />
-      
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
         <div className="text-center">
           <div className="flex justify-center mb-4">
