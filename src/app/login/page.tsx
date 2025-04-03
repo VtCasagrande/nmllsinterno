@@ -129,23 +129,12 @@ function LoginContent() {
       
       if (result.success) {
         logDebug('Login bem-sucedido, preparando redirecionamento');
-        // Um atraso para dar tempo ao contexto de autenticação para atualizar o estado
-        setTimeout(() => {
-          const redirectTo = searchParams.get('redirect') || '/dashboard';
-          logDebug('Parâmetro de redirecionamento:', redirectTo);
-          
-          // Usar o router para redirecionamento (sem recarregar a página)
-          logDebug('Redirecionando para caminho específico:', redirectTo);
-          router.push(redirectTo);
-          
-          // Como fallback, usar redirecionamento direto após um pequeno delay
-          setTimeout(() => {
-            if (window.location.pathname.includes('login')) {
-              logDebug('Fallback: redirecionamento direto');
-              window.location.href = redirectTo;
-            }
-          }, 1000);
-        }, 300);
+        // Obter o destino final do redirecionamento dos parâmetros de URL
+        const redirectTo = searchParams.get('redirect') || '/dashboard';
+        logDebug('Parâmetro de redirecionamento:', redirectTo);
+        
+        // Sempre redirecionar para a página intermediária de redirecionamento
+        window.location.href = `/redirect-to-dashboard?redirect=${encodeURIComponent(redirectTo)}`;
       } else {
         setLoginMessage({
           type: 'error',

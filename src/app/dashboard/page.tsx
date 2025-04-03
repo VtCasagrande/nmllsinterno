@@ -82,7 +82,8 @@ export default function DashboardPage() {
         
         if (!data.session) {
           logDebug('Sem sessão válida no dashboard, redirecionando para login');
-          router.push('/login');
+          // Usar window.location.href para garantir um carregamento completo da página de login
+          window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
           return;
         }
         

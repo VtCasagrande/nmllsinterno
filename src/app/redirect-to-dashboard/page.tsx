@@ -15,7 +15,7 @@ const logDebug = (message: string, data?: any) => {
   }
 };
 
-// Função de log de erro melhorada
+// Função de log de erro
 const logError = (message: string, error?: any) => {
   const timestamp = new Date().toISOString();
   console.error(`[${timestamp}] ❌ REDIRECT ERROR: ${message}`, error);
@@ -28,6 +28,7 @@ function RedirectContent() {
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
   const [sessionVerified, setSessionVerified] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<Record<string, any>>({});
 
   useEffect(() => {
     logDebug('Página de redirecionamento iniciada');
@@ -35,19 +36,37 @@ function RedirectContent() {
     // Verificar se o usuário tem uma sessão ativa
     const checkSessionAndRedirect = async () => {
       try {
+        // Mostrar infos adicionais para debug
+        let debug: Record<string, any> = {
+          timestamp: new Date().toISOString(),
+          url: window.location.href,
+          redirectParam: searchParams.get('redirect') || '/dashboard'
+        };
+        
         logDebug('Verificando sessão ativa');
         // Primeiro, tentar obter a sessão
         const { data, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           logError('Erro ao verificar sessão', sessionError);
+          debug.sessionError = sessionError.message;
+          setDebugInfo(debug);
           setError('Não foi possível verificar sua sessão. Tente fazer login novamente.');
           setIsLoading(false);
           return;
         }
         
+        // Adicionar informações da sessão ao debug
+        debug.hasSession = !!data.session;
+        if (data.session) {
+          debug.userId = data.session.user.id;
+          debug.expiresAt = data.session.expires_at;
+        }
+        
         if (!data.session) {
           logError('Sessão não encontrada');
+          debug.tryingRefresh = true;
+          
           // Tentar atualizar a sessão com o supabase
           try {
             logDebug('Tentando atualizar a sessão');
@@ -55,25 +74,46 @@ function RedirectContent() {
             
             if (refreshError || !refreshData.session) {
               logError('Falha ao atualizar sessão', refreshError);
+              debug.refreshError = refreshError?.message;
+              setDebugInfo(debug);
               setError('Você não está logado. Por favor, faça login novamente.');
               setIsLoading(false);
               return;
             }
             
+            debug.refreshSuccess = true;
+            debug.refreshedUserId = refreshData.session.user.id;
             logDebug('Sessão atualizada com sucesso');
           } catch (refreshErr) {
             logError('Erro ao atualizar sessão', refreshErr);
+            debug.refreshException = refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+            setDebugInfo(debug);
             setError('Você não está logado. Por favor, faça login novamente.');
             setIsLoading(false);
             return;
           }
         }
         
+        // Novo: Segunda tentativa de obter a sessão após a atualização
+        const { data: verifyData } = await supabase.auth.getSession();
+        debug.sessionAfterRefresh = !!verifyData.session;
+        
+        if (!verifyData.session) {
+          logError('Sessão ainda não disponível após refresh');
+          setDebugInfo(debug);
+          setError('Não foi possível confirmar sua autenticação. Por favor, tente novamente.');
+          setIsLoading(false);
+          return;
+        }
+        
         // Verificar dados do usuário (segunda verificação)
         const { data: userData, error: userError } = await supabase.auth.getUser();
         
+        debug.userDataCheck = !!userData.user;
         if (userError || !userData.user) {
           logError('Erro ao obter dados do usuário', userError);
+          debug.userError = userError?.message;
+          setDebugInfo(debug);
           setError('Não foi possível confirmar seus dados. Por favor, faça login novamente.');
           setIsLoading(false);
           return;
@@ -86,8 +126,11 @@ function RedirectContent() {
           .eq('id', userData.user.id)
           .single();
           
+        debug.profileCheck = !!profileData;
         if (profileError) {
           logError('Erro ao verificar perfil do usuário', profileError);
+          debug.profileError = profileError.message;
+          setDebugInfo(debug);
           setError('Não foi possível verificar seu perfil. Por favor, faça login novamente.');
           setIsLoading(false);
           return;
@@ -96,9 +139,12 @@ function RedirectContent() {
         // Sessão encontrada e perfil verificado
         logDebug('Sessão encontrada e verificada, ID do usuário:', userData.user.id);
         logDebug('Perfil encontrado:', profileData);
+        debug.sessionVerified = true;
+        debug.userRole = profileData.role;
+        setDebugInfo(debug);
         setSessionVerified(true);
         
-        // Iniciar contagem regressiva para redirecionamento
+        // Iniciar contagem regressiva mais curta para redirecionamento
         const intervalId = setInterval(() => {
           setCountdown((prev) => {
             if (prev <= 1) {
@@ -116,6 +162,7 @@ function RedirectContent() {
         
       } catch (err) {
         logError('Erro ao verificar autenticação', err);
+        setDebugInfo({ error: err instanceof Error ? err.message : String(err) });
         setError('Ocorreu um erro ao verificar sua autenticação.');
         setIsLoading(false);
       }
@@ -130,24 +177,12 @@ function RedirectContent() {
         
         // Para URLs que vêm do parâmetro redirect da URL de login
         // Estes podem estar codificados como %2F (/) 
-        const decodedDestination = destination.startsWith('%2F') 
-          ? decodeURIComponent(destination) 
-          : destination;
-        
+        const decodedDestination = decodeURIComponent(destination);
         logDebug(`Destino decodificado: ${decodedDestination}`);
-        const finalDestination = decodedDestination || '/dashboard';
         
-        // Primeiro tentar navegar com o router para evitar refresh completo
-        router.push(finalDestination);
-        
-        // Backup - usar location.replace depois de um pequeno delay
-        setTimeout(() => {
-          // Verificar se ainda estamos na página de redirecionamento
-          if (window.location.pathname.includes('redirect-to-dashboard')) {
-            logDebug('Redirecionamento pelo router pode ter falhado, usando window.location');
-            window.location.href = finalDestination;
-          }
-        }, 500);
+        // Usar window.location.href para garantir uma navegação completa
+        // que recarregará todos os componentes da página
+        window.location.href = decodedDestination;
       } catch (err) {
         logError('Erro ao redirecionar', err);
         setError('Ocorreu um erro ao tentar redirecioná-lo.');
@@ -163,10 +198,7 @@ function RedirectContent() {
   const handleManualRedirect = () => {
     logDebug('Redirecionamento manual acionado pelo usuário');
     const destination = searchParams.get('redirect') || '/dashboard';
-    const decodedDestination = destination.startsWith('%2F') 
-      ? decodeURIComponent(destination) 
-      : destination;
-    window.location.href = decodedDestination;
+    window.location.href = decodeURIComponent(destination);
   };
 
   // Se estiver carregando, mostrar tela de carregamento com contagem regressiva
@@ -204,6 +236,14 @@ function RedirectContent() {
           <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
             <p className="text-red-700">{error}</p>
           </div>
+          
+          {Object.keys(debugInfo).length > 0 && (
+            <div className="mb-4 p-3 bg-gray-50 rounded text-xs overflow-auto max-h-40">
+              <h3 className="font-bold mb-1">Informações de Diagnóstico:</h3>
+              <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+            </div>
+          )}
+          
           <p className="text-gray-600 mb-6">Por favor, tente fazer login novamente.</p>
           <div className="flex flex-col space-y-3">
             <Link
@@ -228,20 +268,15 @@ function RedirectContent() {
   return null;
 }
 
-// Componente para mostrar durante o carregamento
-function RedirectLoading() {
+export default function RedirectPage() {
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-      <h1 className="text-2xl font-bold mb-2 text-blue-600">Carregando...</h1>
-      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-      <p className="text-gray-600">Preparando redirecionamento...</p>
-    </div>
-  );
-}
-
-export default function RedirectToDashboard() {
-  return (
-    <Suspense fallback={<RedirectLoading />}>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <h1 className="text-2xl font-bold mb-2 text-blue-600">Carregando...</h1>
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+        <p className="text-gray-600">Preparando redirecionamento...</p>
+      </div>
+    }>
       <RedirectContent />
     </Suspense>
   );
