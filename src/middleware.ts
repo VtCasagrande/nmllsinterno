@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function middleware(request: NextRequest) {
   // Rotas que não precisam de autenticação
@@ -41,33 +42,8 @@ export async function middleware(request: NextRequest) {
     // Criar resposta com os mesmos cabeçalhos e cookies
     const res = NextResponse.next();
     
-    // Configurar supabase client com cookies da requisição/resposta
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
-    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
-    
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        cookies: {
-          get: (name: string) => request.cookies.get(name)?.value,
-          set: (name: string, value: string, options: CookieOptions) => {
-            res.cookies.set({
-              name,
-              value,
-              ...options
-            });
-          },
-          remove: (name: string, options: CookieOptions) => {
-            res.cookies.set({
-              name,
-              value: '',
-              ...options
-            });
-          }
-        }
-      }
-    );
+    // Criar cliente do Supabase para middleware, que gerencia cookies automaticamente
+    const supabase = createMiddlewareClient<SupabaseClient>({ req: request, res });
     
     // Obter a sessão atual e atualizar cookies
     const { data: { session } } = await supabase.auth.getSession();
