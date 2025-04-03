@@ -26,9 +26,10 @@ function RedirectContent() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
-    logDebug('Página de redirecionamento iniciada');
+    logDebug('Página de redirecionamento intermediária iniciada');
     
     // Função para verificar autenticação e redirecionar
     const checkAuthAndRedirect = async () => {
@@ -46,21 +47,36 @@ function RedirectContent() {
         if (!data.session) {
           logDebug('Nenhuma sessão encontrada, redirecionando para login');
           // Sem sessão, redirecionar para login
-          window.location.href = "/login";
+          router.push("/login");
           return;
         }
         
-        // Temos uma sessão válida, redirecionar para o destino
-        logDebug('Sessão válida encontrada, redirecionando para o destino');
+        // Temos uma sessão válida, iniciar contagem para o redirecionamento
+        logDebug('Sessão válida encontrada, iniciando contagem regressiva');
+        
+        // Obter o destino final do parâmetro de URL
         const destination = searchParams.get('redirect') || '/dashboard';
         
-        // Adicionar flag para evitar loop de redirecionamento
-        const separator = destination.includes('?') ? '&' : '?';
-        const finalDestination = `${destination}${separator}_auth_verified=true`;
+        // Iniciar contagem regressiva
+        const countdownInterval = setInterval(() => {
+          setCountdown((prev) => {
+            if (prev <= 1) {
+              clearInterval(countdownInterval);
+              
+              // Adicionar flag para evitar loop de redirecionamento
+              const separator = destination.includes('?') ? '&' : '?';
+              const finalDestination = `${destination}${separator}_auth_verified=true&_from_redirect_page=true`;
+              
+              logDebug(`Contagem regressiva concluída, redirecionando para: ${finalDestination}`);
+              router.push(finalDestination);
+              return 0;
+            }
+            return prev - 1;
+          });
+        }, 1000);
         
-        logDebug(`Redirecionando para destino final: ${finalDestination}`);
-        // Usar window.location para um refresh completo
-        window.location.href = finalDestination;
+        // Limpar intervalo se o componente for desmontado
+        return () => clearInterval(countdownInterval);
       } catch (err) {
         console.error('Erro ao verificar autenticação:', err);
         setError('Ocorreu um erro durante o redirecionamento. Por favor, tente fazer login novamente.');
@@ -68,17 +84,17 @@ function RedirectContent() {
       }
     };
     
-    // Executar verificação com um pequeno delay para garantir que os cookies sejam sincronizados
+    // Iniciar após um pequeno delay
     setTimeout(checkAuthAndRedirect, 300);
-  }, [searchParams]);
+  }, [searchParams, router]);
   
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
-        <h1 className="text-2xl font-bold mb-4 text-blue-600">Verificando autenticação...</h1>
+        <h1 className="text-2xl font-bold mb-4 text-blue-600">Verificação intermediária...</h1>
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-        <p className="text-gray-600">Você será redirecionado automaticamente.</p>
-        <div className="mt-6 text-sm text-gray-500">Aguarde enquanto verificamos sua sessão...</div>
+        <p className="text-gray-600">Redirecionando em {countdown} segundos...</p>
+        <div className="mt-6 text-sm text-gray-500">Verificando sessão e redirecionando para o dashboard...</div>
       </div>
     );
   }
@@ -99,7 +115,7 @@ function RedirectContent() {
               Voltar para a página de login
             </Link>
             <Link
-              href="/dashboard?_auth_bypass=true"
+              href="/dashboard?_auth_bypass=true&_direct_access=true"
               className="w-full px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded hover:bg-gray-300 transition-colors text-center"
             >
               Tentar acessar o Dashboard mesmo assim

@@ -127,19 +127,11 @@ function LoginContent() {
       const result = await signIn(formData.email, formData.senha);
       
       if (result.success) {
-        logDebug('Login bem-sucedido, o contexto de autenticação cuidará do redirecionamento');
+        logDebug('Login bem-sucedido, aguardando AuthContext processar o redirecionamento');
         
-        // Permitir um pequeno delay para garantir que os cookies sejam sincronizados
-        setTimeout(() => {
-          // Obter o destino de redirecionamento da URL se disponível
-          const urlParams = new URLSearchParams(window.location.search);
-          const redirectParam = urlParams.get('redirect') || '/dashboard';
-          
-          // Usar window.location.href para garantir um refresh completo da página
-          // Isso garante que o middleware verá os cookies atualizados
-          logDebug(`Redirecionando para: ${redirectParam}`);
-          window.location.href = redirectParam;
-        }, 300); // Delay maior para garantir que os cookies estejam configurados
+        // Deixamos o redirecionamento para o AuthContext fazer
+        // Apenas mantemos o isLoading para mostrar o estado de carregamento
+        // Não vamos forçar redirecionamentos daqui para evitar conflitos
       } else {
         setLoginMessage({
           type: 'error',
@@ -159,8 +151,8 @@ function LoginContent() {
   
   // Função para acessar dashboard diretamente
   const acessarDashboardDiretamente = () => {
-    // Limpar qualquer parâmetro de erro ou loop
-    window.location.href = '/dashboard?_auth_bypass=true';
+    // Adicionar parâmetros para contornar verificações de autenticação
+    window.location.href = '/dashboard?_auth_bypass=true&_direct_access=true';
   };
   
   return (

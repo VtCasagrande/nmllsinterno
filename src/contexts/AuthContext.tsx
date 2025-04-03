@@ -145,19 +145,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (isLoginPage && typeof window !== 'undefined') {
         const urlParams = new URLSearchParams(window.location.search);
         const redirectParam = urlParams.get('redirect');
-        if (redirectParam && redirectParam !== '/login') {
+        if (redirectParam && redirectParam !== '/login' && !redirectParam.includes('_auth_loop') && !redirectParam.includes('_auth_checked')) {
           redirectPath = redirectParam;
         }
       }
       
       // Redirecionar para o dashboard ou destino especificado
       if (isLoginPage) {
-        logDebug(`Usuário autenticado na página de login, redirecionando para: ${redirectPath}`);
+        // Verificação adicional para garantir que os dados de autenticação estão consistentes
+        const doubleCheckAuth = async () => {
+          try {
+            // Verificar a sessão do Supabase antes de redirecionar
+            const { data } = await supabase.auth.getSession();
+            
+            if (data.session) {
+              logDebug(`Usuário verificado como autenticado, redirecionando para: ${redirectPath}`);
+              
+              // Adicionar um parâmetro para evitar loops
+              const separator = redirectPath.includes('?') ? '&' : '?';
+              const finalPath = `${redirectPath}${separator}_auth_verified=true`;
+              
+              // Usar router.push com delay maior para dar tempo aos cookies
+              setTimeout(() => {
+                logDebug('Executando redirecionamento via router.push após delay');
+                router.push(finalPath);
+              }, 500); // Aumentado para 500ms para garantir persistência de cookies
+            } else {
+              logError('Inconsistência detectada: isAuthenticated=true mas não há sessão no Supabase');
+              setIsAuthenticated(false);
+              setHasProfile(false);
+            }
+          } catch (error) {
+            logError('Erro ao verificar sessão antes de redirecionar:', error);
+          }
+        };
         
-        // Usar um pequeno timeout para garantir que os cookies sejam sincronizados
-        setTimeout(() => {
-          router.push(redirectPath);
-        }, 100);
+        doubleCheckAuth();
       }
     }
   }, [loading, isAuthenticated, hasProfile, pathname, router]);
@@ -287,27 +310,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
                   setProfile(basicProfile);
                   setProfileLoaded(true);
                   setHasProfile(true);
+                  
+                  // Agora com perfil carregado, verificar se estamos na página de login
+                  if (pathname?.includes('/login')) {
+                    // Adiamos o redirecionamento para o useEffect acima lidar com ele
+                    // Isso evita duplicação de lógica e timing issues
+                    logDebug('Perfil carregado, redirecionamento será tratado pelo useEffect');
+                  }
                 }
               } catch (insertErr) {
                 logError('Exceção ao criar perfil básico após evento:', insertErr);
                 setHasProfile(false);
               }
-            }
-
-            // Determinar o redirecionamento baseado na página atual
-            if (pathname?.includes('/login')) {
-              let redirectPath = '/dashboard';
-              if (typeof window !== 'undefined') {
-                const urlParams = new URLSearchParams(window.location.search);
-                const redirectParam = urlParams.get('redirect');
-                if (redirectParam && !redirectParam.includes('/login')) {
-                  redirectPath = redirectParam;
-                }
-              }
-              
-              logDebug(`Redirecionando para ${redirectPath} após autenticação`);
-              // Usar window.location para uma navegação completa que atualize o estado dos cookies
-              window.location.href = redirectPath;
+            } else {
+              // Se já temos o perfil, o useEffect acima vai lidar com o redirecionamento
+              logDebug('Perfil encontrado, redirecionamento será tratado pelo useEffect');
             }
           } catch (error) {
             logError('Erro ao processar profile após autenticação:', error);
@@ -322,8 +339,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(false);
         setHasProfile(false);
         
-        // Redirecionar para login após logout usando window.location para garantir refresh total
-        window.location.href = '/login';
+        // Redirecionar para login após logout usando router.push
+        router.push('/login');
       } else if (event === 'USER_UPDATED') {
         logDebug('Dados do usuário atualizados');
         if (newSession) {
