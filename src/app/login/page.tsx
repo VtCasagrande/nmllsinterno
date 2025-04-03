@@ -69,7 +69,10 @@ function LoginContent() {
         
         if (!error && data.session) {
           console.log('Usuário já está autenticado, redirecionando para dashboard...');
-          window.location.href = window.location.origin + '/dashboard';
+          // Usar timeout para garantir que o redirecionamento ocorra após a renderização
+          setTimeout(() => {
+            window.location.href = window.location.origin + '/dashboard';
+          }, 100);
         }
       } catch (err) {
         console.error('Erro ao verificar sessão existente:', err);
@@ -149,10 +152,15 @@ function LoginContent() {
       const redirectTo = searchParams.get('redirect') || '/dashboard';
       console.log('Redirecionando para:', redirectTo);
       
-      // Redirecionar diretamente, sem esperar context.signIn
-      window.location.href = redirectTo.startsWith('/') 
-        ? window.location.origin + redirectTo
-        : redirectTo;
+      // Forçar redirecionamento com timeout para garantir que aconteça
+      setTimeout(() => {
+        const fullRedirectUrl = redirectTo.startsWith('/') 
+          ? window.location.origin + redirectTo
+          : redirectTo;
+          
+        console.log('URL de redirecionamento completa:', fullRedirectUrl);
+        window.location.replace(fullRedirectUrl);
+      }, 500);
       
     } catch (error) {
       console.error('Erro durante o login:', error);
@@ -194,8 +202,12 @@ function LoginContent() {
       
       console.log('Login demo bem-sucedido, redirecionando...');
       
-      // Forçar redirecionamento usando window.location
-      window.location.href = window.location.origin + '/dashboard';
+      // Forçar redirecionamento usando timeout e location.replace
+      setTimeout(() => {
+        const dashboardUrl = window.location.origin + '/dashboard';
+        console.log('Redirecionando para dashboard:', dashboardUrl);
+        window.location.replace(dashboardUrl);
+      }, 500);
     } catch (error) {
       console.error('Erro durante login demo:', error);
       setLoginMessage({
