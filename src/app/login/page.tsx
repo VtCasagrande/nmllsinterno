@@ -127,13 +127,9 @@ function LoginContent() {
       const result = await signIn(formData.email, formData.senha);
       
       if (result.success) {
-        logDebug('Login bem-sucedido, preparando redirecionamento');
-        // Obter o destino final do redirecionamento dos parâmetros de URL
-        const redirectTo = searchParams.get('redirect') || '/dashboard';
-        logDebug('Parâmetro de redirecionamento:', redirectTo);
-        
-        // Sempre redirecionar para a página intermediária de redirecionamento
-        window.location.href = `/redirect-to-dashboard?redirect=${encodeURIComponent(redirectTo)}`;
+        logDebug('Login bem-sucedido, o contexto de autenticação cuidará do redirecionamento');
+        // Não precisamos mais redirecionar aqui, o AuthContext fará isso
+        // automaticamente após o evento de login e verificação do perfil
       } else {
         setLoginMessage({
           type: 'error',
@@ -153,8 +149,8 @@ function LoginContent() {
   
   // Função para acessar dashboard diretamente
   const acessarDashboardDiretamente = () => {
-    // Simplesmente navegar para a página de redirecionamento
-    window.location.href = '/redirect-to-dashboard';
+    // Vamos tentar acessar o dashboard diretamente
+    router.push('/dashboard');
   };
   
   return (

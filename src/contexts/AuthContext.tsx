@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { useRouter, usePathname } from 'next/navigation';
 
 // Função de log melhorada para exibir no console
 const logDebug = (message: string, data?: any) => {
@@ -37,6 +38,8 @@ interface AuthContextType {
   loading: boolean;
   error: string | null;
   profileLoaded: boolean;
+  isAuthenticated: boolean;
+  hasProfile: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -67,6 +70,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasProfile, setHasProfile] = useState(false);
+  
+  const router = useRouter();
+  const pathname = usePathname();
 
   // Função para buscar o perfil do usuário
   const fetchProfile = async (userId: string) => {
@@ -82,9 +90,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (error.code === 'PGRST116') {
           // Perfil não encontrado, o que é esperado para novos usuários
           logDebug('Perfil não encontrado para o ID:', userId);
+          setHasProfile(false);
           return null;
         } else {
           logError('Erro ao buscar perfil:', error);
+          setHasProfile(false);
           throw error;
         }
       }
@@ -93,13 +103,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         logDebug('Perfil encontrado:', { id: data.id, role: data.role });
         setProfile(data);
         setProfileLoaded(true);
+        setHasProfile(true);
         return data;
       } else {
         logDebug('Nenhum perfil encontrado para o ID:', userId);
+        setHasProfile(false);
         return null;
       }
     } catch (error) {
       logError('Erro ao buscar perfil:', error);
+      setHasProfile(false);
       return null;
     }
   };
@@ -119,6 +132,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  // Novo efeito para redirecionamento
+  useEffect(() => {
+    // Verificar o estado de autenticação e redirecionar se necessário
+    if (!loading && isAuthenticated && hasProfile) {
+      // Não redirecionar se estiver na tela de login ou redirecionamento
+      const isLoginPage = pathname?.includes('/login');
+      const isRedirectPage = pathname?.includes('/redirect-to-dashboard');
+      
+      if (!isLoginPage && !isRedirectPage && pathname === '/') {
+        logDebug('Usuário autenticado, redirecionando para dashboard');
+        router.push('/dashboard');
+      }
+    }
+  }, [loading, isAuthenticated, hasProfile, pathname, router]);
+
   // Inicializar a autenticação e ouvir mudanças de sessão
   useEffect(() => {
     logDebug('Inicializando contexto de autenticação');
@@ -133,6 +161,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (sessionError) {
           logError('Erro ao obter sessão atual:', sessionError);
           setError(sessionError.message);
+          setIsAuthenticated(false);
           setLoading(false);
           return;
         }
@@ -145,6 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           
           setSession(currentSession);
           setUser(currentSession.user);
+          setIsAuthenticated(true);
           
           // Buscar perfil do usuário
           const userProfile = await fetchProfile(currentSession.user.id);
@@ -164,18 +194,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 
               if (insertError) {
                 logError('Erro ao criar perfil básico:', insertError);
+                setHasProfile(false);
               } else {
                 logDebug('Perfil básico criado com sucesso');
+                setProfile(basicProfile);
+                setProfileLoaded(true);
+                setHasProfile(true);
               }
             } catch (insertErr) {
               logError('Exceção ao criar perfil básico:', insertErr);
+              setHasProfile(false);
             }
-            
-            setProfile(basicProfile);
-            setProfileLoaded(true);
           }
         } else {
           logDebug('Nenhuma sessão ativa encontrada');
+          setIsAuthenticated(false);
+          setHasProfile(false);
         }
       } catch (error) {
         logError('Erro ao inicializar autenticação:', error);
@@ -184,6 +218,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           setError('Erro desconhecido ao inicializar autenticação');
         }
+        setIsAuthenticated(false);
+        setHasProfile(false);
       } finally {
         setLoading(false);
       }
@@ -201,6 +237,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           logDebug('Usuário fez login ou token atualizado', { userId: newSession.user.id });
           setSession(newSession);
           setUser(newSession.user);
+          setIsAuthenticated(true);
           
           // Resetar estado de perfil carregado
           setProfileLoaded(false);
@@ -225,16 +262,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 
               if (insertError) {
                 logError('Erro ao criar perfil básico após evento:', insertError);
+                setHasProfile(false);
               } else {
                 logDebug('Perfil básico criado com sucesso após evento');
+                setProfile(basicProfile);
+                setProfileLoaded(true);
+                setHasProfile(true);
               }
             } catch (insertErr) {
               logError('Exceção ao criar perfil básico após evento:', insertErr);
+              setHasProfile(false);
             }
-            
-            // Atualizar o estado com o perfil básico
-            setProfile(basicProfile);
-            setProfileLoaded(true);
+          }
+          
+          // Verificar se o usuário deve ser redirecionado
+          const isLoginPage = pathname?.includes('/login');
+          const isRedirectPage = pathname?.includes('/redirect-to-dashboard');
+          
+          if (isLoginPage || (isAuthenticated && hasProfile && !isRedirectPage)) {
+            logDebug('Redirecionando para o dashboard após autenticação');
+            router.push('/dashboard');
           }
         }
       } else if (event === 'SIGNED_OUT') {
@@ -243,6 +290,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(null);
         setProfile(null);
         setProfileLoaded(false);
+        setIsAuthenticated(false);
+        setHasProfile(false);
+        
+        // Redirecionar para login após logout
+        router.push('/login');
       } else if (event === 'USER_UPDATED') {
         logDebug('Dados do usuário atualizados');
         if (newSession) {
@@ -258,12 +310,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       logDebug('Limpando listener de autenticação');
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [pathname, router]);
 
   // Função para fazer login
   const signIn = async (email: string, password: string) => {
     try {
       logDebug(`Tentando fazer login com email: ${email}`);
+      setLoading(true);
       
       // Verificar se já existe uma sessão e fazer logout se necessário
       const { data: sessionData } = await supabase.auth.getSession();
@@ -279,24 +332,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       if (error) {
         logError('Erro no login:', error);
+        setIsAuthenticated(false);
+        setHasProfile(false);
+        setLoading(false);
         return { success: false, error: error.message };
       }
 
       if (!data.session) {
         logError('Login sem sessão retornada');
+        setIsAuthenticated(false);
+        setHasProfile(false);
+        setLoading(false);
         return { success: false, error: 'Falha ao criar sessão' };
       }
 
       logDebug('Login bem-sucedido:', { userId: data.user?.id });
       setSession(data.session);
       setUser(data.user);
+      setIsAuthenticated(true);
       
       // Se login bem-sucedido, buscar perfil
       if (data.user) {
         try {
-          // Definir que estamos carregando o perfil
-          setLoading(true);
-          
           const fetchedProfile = await fetchProfile(data.user.id);
           
           // Se não encontrou perfil, criar um básico
@@ -316,16 +373,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
                 
               if (insertError) {
                 logError('Erro ao criar perfil básico:', insertError);
+                setHasProfile(false);
               } else {
                 logDebug('Perfil básico criado com sucesso');
+                setProfile(basicProfile);
+                setProfileLoaded(true);
+                setHasProfile(true);
               }
             } catch (insertErr) {
               logError('Exceção ao criar perfil básico:', insertErr);
+              setHasProfile(false);
             }
-            
-            // Atualizar o estado com o perfil básico mesmo se falhar na inserção
-            setProfile(basicProfile);
-            setProfileLoaded(true);
           }
         } catch (profileError) {
           logError('Erro ao buscar/criar perfil após login:', profileError);
@@ -336,16 +394,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
             role: 'user'
           });
           setProfileLoaded(true);
+          setHasProfile(true);
         } finally {
           // Garantir que o loading seja sempre desativado
           setLoading(false);
         }
+      } else {
+        setLoading(false);
       }
 
       return { success: true };
     } catch (error) {
       logError('Erro durante o processo de login:', error);
       setLoading(false);
+      setIsAuthenticated(false);
+      setHasProfile(false);
       if (error instanceof Error) {
         return { success: false, error: error.message };
       }
@@ -370,6 +433,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Reset completo do estado
       setSession(null);
       setUser(null);
+      setIsAuthenticated(false);
+      setHasProfile(false);
       
       logDebug('Logout realizado com sucesso');
     } catch (error) {
@@ -390,14 +455,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
     loading,
     error,
     profileLoaded,
+    isAuthenticated,
+    hasProfile,
     signIn,
     signOut,
     refreshProfile,
   };
 
   logDebug('Renderizando AuthProvider', { 
-    isAuthenticated: !!session,
-    hasProfile: !!profile || profileLoaded,
+    isAuthenticated,
+    hasProfile,
     isLoading: loading
   });
 
