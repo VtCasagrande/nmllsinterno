@@ -31,13 +31,21 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
   const [authorized, setAuthorized] = useState(false);
   const router = useRouter();
   const { session, user, profile, loading: authLoading } = useAuth();
+  const [retryCount, setRetryCount] = useState(0);
+  const MAX_RETRIES = 2;
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Se estamos carregando o contexto de autenticação, aguardar
-        if (authLoading) {
-          logDebug('Contexto de autenticação carregando');
+        logDebug('Iniciando verificação de autenticação');
+        
+        // Se estamos carregando o contexto de autenticação e ainda temos tentativas, aguardar
+        if (authLoading && retryCount < MAX_RETRIES) {
+          logDebug(`Contexto de autenticação carregando, tentativa ${retryCount + 1} de ${MAX_RETRIES + 1}`);
+          // Incrementar contador de tentativas
+          setRetryCount(prev => prev + 1);
+          // Tentar novamente após um breve delay
+          setTimeout(() => checkAuth(), 800);
           return;
         }
 
@@ -64,42 +72,87 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
         }
         
         // Se não temos sessão no contexto, verificar diretamente no Supabase
-        const { data } = await supabase.auth.getSession();
+        const { data, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          logError('Erro ao verificar sessão do Supabase:', sessionError);
+          throw sessionError;
+        }
         
         if (data.session) {
           logDebug('Usuário autenticado via Supabase:', { userId: data.session.user.id });
           // Tem sessão no Supabase, mas não no contexto - permitir acesso
-          // O contexto será atualizado naturalmente
           setAuthorized(true);
           setLoading(false);
           return;
         }
         
-        // Não há sessão, redirecionar para login
+        // Usuário não está autenticado se chegou até aqui
         logDebug('Usuário não autenticado, redirecionando para login');
         const currentPath = window.location.pathname;
-        router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        
+        // Fazer o redirecionamento usando o router
+        router.push(loginUrl);
+        
+        // Como último recurso, em caso de problemas com o router
+        setTimeout(() => {
+          if (!authorized) {
+            logDebug('Usando redirecionamento direto como backup');
+            window.location.href = loginUrl;
+          }
+        }, 500);
+        
         setLoading(false);
       } catch (error) {
         logError('Erro ao verificar autenticação:', error);
-        // Em caso de erro, não redirecionar automaticamente
-        // Isso evita loops infinitos em caso de problemas com a autenticação
+        
+        // Em caso de erro, tentar uma última verificação direta
+        try {
+          logDebug('Tentando verificação direta com o armazenamento local');
+          // Verificar se temos um objeto user no localStorage como último recurso
+          const localStorageAuth = localStorage.getItem('supabase.auth.token');
+          
+          if (localStorageAuth) {
+            logDebug('Encontrada informação de auth no localStorage, tentando verificar');
+            // Tentar novamente a autenticação com o Supabase
+            const { data } = await supabase.auth.getSession();
+            
+            if (data.session) {
+              logDebug('Autenticação restaurada com sucesso');
+              setAuthorized(true);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (storageError) {
+          logError('Erro ao verificar localStorage:', storageError);
+        }
+        
+        // Se ainda não funcionou, redirecionar para login
+        logDebug('Redirecionando para login após falha');
+        router.push('/login');
         setLoading(false);
         setAuthorized(false);
       }
     };
 
+    // Iniciar a verificação
     checkAuth();
-  }, [router, allowedRoles, session, user, profile, authLoading]);
+  }, [router, allowedRoles, session, user, profile, authLoading, retryCount, authorized]);
 
   // Mostrar loader enquanto verifica autenticação
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-600">Verificando autenticação...</p>
+        </div>
       </div>
     );
   }
 
+  // Retornar os filhos apenas se o usuário estiver autorizado
   return authorized ? <>{children}</> : null;
 } 
