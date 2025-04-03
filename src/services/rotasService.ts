@@ -264,6 +264,9 @@ export const rotasService = {
    */
   async buscarRotaPorId(id: string): Promise<RotaCompleta | null> {
     try {
+      // Log para depuração
+      console.log(`[${new Date().toISOString()}] 🔍 Buscando rota com ID: ${id}`);
+      
       const { data, error } = await supabase
         .from('rotas')
         .select(`
@@ -281,14 +284,25 @@ export const rotasService = {
         .single();
 
       if (error) {
+        // Verificar especificamente o erro de API key inválida
+        if (error.message && error.message.includes('Invalid API key')) {
+          console.error(`[${new Date().toISOString()}] ❌ ERRO DE API KEY: ${error.message}`);
+          console.error(`URL Supabase: ${process.env.NEXT_PUBLIC_SUPABASE_URL}`);
+          console.error(`API Key (primeiros caracteres): ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.substring(0, 10)}...`);
+          throw new Error(`Erro de configuração: API key inválida`);
+        }
+        
         if (error.code === 'PGRST116') {
           // Rota não encontrada
+          console.log(`[${new Date().toISOString()}] ⚠️ Rota com ID ${id} não encontrada`);
           return null;
         }
+        console.error(`[${new Date().toISOString()}] ❌ Erro ao buscar rota: ${error.message}`, error);
         throw new Error(`Erro ao buscar rota: ${error.message}`);
       }
 
       if (!data) {
+        console.log(`[${new Date().toISOString()}] ⚠️ Nenhum dado retornado para rota com ID ${id}`);
         return null;
       }
 
@@ -305,14 +319,24 @@ export const rotasService = {
         };
       }
       
-      return {
+      const rotaCompleta = {
         ...rotaData,
         itens: itens_rota as unknown as ItemRota[],
         pagamentos: pagamentos_rota as unknown as PagamentoRota[],
         motorista: motoristaNormalizado
       };
+      
+      console.log(`[${new Date().toISOString()}] ✅ Rota ${id} encontrada com sucesso`);
+      return rotaCompleta;
     } catch (error) {
-      console.error(`Erro ao buscar rota com ID ${id}:`, error);
+      console.error(`[${new Date().toISOString()}] ❌ Erro ao buscar rota com ID ${id}:`, error);
+      
+      // Verificar se o erro é do tipo Error e contém uma mensagem sobre API key
+      if (error instanceof Error && error.message.includes('API key')) {
+        // Repassar o erro para mostrar ao usuário
+        throw error;
+      }
+      
       throw error;
     }
   },

@@ -4,11 +4,43 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
 
+// Verificar e logar a configuração do Supabase
+const isServerSide = typeof window === 'undefined';
+const isBuildTime = process.env.NODE_ENV === 'production' && isServerSide;
+
+if (!isBuildTime) {
+  const timestamp = new Date().toISOString();
+  console.log(`[${timestamp}] 🔄 SUPABASE: Inicializando cliente`);
+  console.log(`[${timestamp}] 🔄 SUPABASE URL: ${supabaseUrl}`);
+  console.log(`[${timestamp}] 🔄 SUPABASE KEY: ${supabaseAnonKey ? `${supabaseAnonKey.substring(0, 10)}...` : 'não definida'}`);
+  console.log(`[${timestamp}] 🔄 NODE_ENV: ${process.env.NODE_ENV}`);
+}
+
 // Criar cliente Supabase
 export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey
 );
+
+// Verificar a conexão com Supabase (tentativa básica para detectar problemas de chave)
+if (!isBuildTime) {
+  (async () => {
+    try {
+      const timestamp = new Date().toISOString();
+      const { data, error } = await supabase.from('profiles').select('count').limit(1);
+      
+      if (error) {
+        console.error(`[${timestamp}] ❌ SUPABASE ERROR: Falha na conexão`);
+        console.error(`[${timestamp}] ❌ SUPABASE ERROR: ${error.message}`);
+      } else {
+        console.log(`[${timestamp}] ✅ SUPABASE: Conexão estabelecida com sucesso`);
+      }
+    } catch (err) {
+      const timestamp = new Date().toISOString();
+      console.error(`[${timestamp}] ❌ SUPABASE ERROR: Exceção na verificação de conexão`, err);
+    }
+  })();
+}
 
 // Tipo para a base de dados
 export type Database = {
