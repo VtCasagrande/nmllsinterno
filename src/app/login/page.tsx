@@ -118,87 +118,46 @@ function LoginContent() {
     return Object.keys(newErrors).length === 0;
   };
   
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!validarFormulario()) {
-      logDebug('Validação do formulário falhou');
-      return;
-    }
-    
     setIsLoading(true);
     setLoginMessage(null);
     
     try {
-      logDebug(`Iniciando login para: ${formData.email}`);
+      logDebug('Iniciando login para:', formData.email);
+      const result = await signIn(formData.email, formData.senha);
       
-      // Usar o método signIn do AuthContext em vez de chamar diretamente o Supabase
-      const { success, error } = await signIn(formData.email, formData.senha);
-      
-      if (error) {
-        logError('Erro na autenticação:', error);
+      if (result.success) {
+        logDebug('Login bem-sucedido, preparando redirecionamento');
+        // Um atraso para dar tempo ao contexto de autenticação para atualizar o estado
+        setTimeout(() => {
+          const redirectTo = searchParams.get('redirect') || '/dashboard';
+          logDebug('Parâmetro de redirecionamento:', redirectTo);
+          
+          // Usar o router para redirecionamento (sem recarregar a página)
+          logDebug('Redirecionando para caminho específico:', redirectTo);
+          router.push(redirectTo);
+          
+          // Como fallback, usar redirecionamento direto após um pequeno delay
+          setTimeout(() => {
+            if (window.location.pathname.includes('login')) {
+              logDebug('Fallback: redirecionamento direto');
+              window.location.href = redirectTo;
+            }
+          }, 1000);
+        }, 300);
+      } else {
         setLoginMessage({
           type: 'error',
-          text: error || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
+          text: result.error || 'Ocorreu um erro na autenticação.'
         });
         setIsLoading(false);
-        return;
       }
-      
-      // Sucesso no login
-      logDebug('Login bem-sucedido, preparando redirecionamento');
-      
-      // Mostrar mensagem de sucesso
-      setLoginMessage({
-        type: 'success',
-        text: 'Login bem-sucedido. Redirecionando...'
-      });
-      
-      // Atualizar o estado para parar o loading
-      setIsLoading(false);
-      
-      // Verificar se há um caminho de redirecionamento nos parâmetros
-      const redirectPath = searchParams.get('redirect');
-      logDebug(`Parâmetro de redirecionamento: ${redirectPath}`);
-      
-      // Aguardar um pequeno tempo para garantir que a sessão foi estabelecida
-      setTimeout(() => {
-        try {
-          // Se houver um parâmetro de redirecionamento e for para o dashboard, ir primeiro para a página intermediária
-          if (redirectPath && (redirectPath === '/dashboard' || redirectPath.startsWith('/dashboard/'))) {
-            logDebug('Redirecionando para a página intermediária');
-            window.location.href = '/redirect-to-dashboard';
-            return;
-          }
-          
-          // Se houver um redirecionamento específico diferente do dashboard, ir para esse caminho
-          if (redirectPath && redirectPath !== '/dashboard') {
-            logDebug(`Redirecionando para caminho específico: ${redirectPath}`);
-            window.location.href = redirectPath;
-            return;
-          }
-          
-          // Por padrão, redirecionar para a página intermediária
-          logDebug('Redirecionando para a página intermediária (padrão)');
-          window.location.href = '/redirect-to-dashboard';
-        } catch (redirectErr) {
-          logError('Erro ao processar redirecionamento:', redirectErr);
-          // Em caso de erro, enviar para o dashboard diretamente como último recurso
-          window.location.href = '/dashboard';
-        }
-      }, 300);
-      
-    } catch (error) {
-      logError('Erro durante o login:', error);
-      
-      let errorMessage = 'Erro ao fazer login. Verifique suas credenciais e tente novamente.';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
+    } catch (err) {
+      logError('Erro no processo de login:', err);
       setLoginMessage({
         type: 'error',
-        text: errorMessage
+        text: 'Ocorreu um erro ao tentar fazer login.'
       });
       setIsLoading(false);
     }
@@ -240,7 +199,7 @@ function LoginContent() {
           </div>
         )}
         
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
           <div className="space-y-4">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">

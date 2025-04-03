@@ -36,6 +36,7 @@ function RedirectContent() {
     const checkSessionAndRedirect = async () => {
       try {
         logDebug('Verificando sessão ativa');
+        // Primeiro, tentar obter a sessão
         const { data, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
@@ -68,8 +69,33 @@ function RedirectContent() {
           }
         }
         
-        // Sessão encontrada, verificando o token
-        logDebug('Sessão encontrada, ID do usuário:', data.session?.user.id);
+        // Verificar dados do usuário (segunda verificação)
+        const { data: userData, error: userError } = await supabase.auth.getUser();
+        
+        if (userError || !userData.user) {
+          logError('Erro ao obter dados do usuário', userError);
+          setError('Não foi possível confirmar seus dados. Por favor, faça login novamente.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Verificar se o usuário tem um perfil
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', userData.user.id)
+          .single();
+          
+        if (profileError) {
+          logError('Erro ao verificar perfil do usuário', profileError);
+          setError('Não foi possível verificar seu perfil. Por favor, faça login novamente.');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Sessão encontrada e perfil verificado
+        logDebug('Sessão encontrada e verificada, ID do usuário:', userData.user.id);
+        logDebug('Perfil encontrado:', profileData);
         setSessionVerified(true);
         
         // Iniciar contagem regressiva para redirecionamento
@@ -102,12 +128,6 @@ function RedirectContent() {
         const destination = searchParams.get('redirect') || '/dashboard';
         logDebug(`Executando redirecionamento para: ${destination}`);
         
-        // Para URLs com parâmetros específicos
-        if (destination.includes('?')) {
-          logDebug('Destino contém parâmetros, processando URL especial');
-          // Pode ser necessário um tratamento adicional aqui para URLs complexas
-        }
-        
         // Para URLs que vêm do parâmetro redirect da URL de login
         // Estes podem estar codificados como %2F (/) 
         const decodedDestination = destination.startsWith('%2F') 
@@ -125,15 +145,7 @@ function RedirectContent() {
           // Verificar se ainda estamos na página de redirecionamento
           if (window.location.pathname.includes('redirect-to-dashboard')) {
             logDebug('Redirecionamento pelo router pode ter falhado, usando window.location');
-            window.location.replace(finalDestination);
-            
-            // Segundo backup - último recurso
-            setTimeout(() => {
-              if (window.location.pathname.includes('redirect-to-dashboard')) {
-                logDebug('Tentativas anteriores falharam, usando location.href como último recurso');
-                window.location.href = finalDestination;
-              }
-            }, 500);
+            window.location.href = finalDestination;
           }
         }, 500);
       } catch (err) {

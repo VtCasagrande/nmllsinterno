@@ -49,43 +49,81 @@ export default function DashboardPage() {
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const router = useRouter();
 
-  // Verifica direto a sessão ao entrar no dashboard
+  // Verificar sessão e autenticação ao carregar o dashboard
   useEffect(() => {
-    const verifySessionDirect = async () => {
+    const verifyAuthState = async () => {
       try {
-        logDebug('Verificando sessão diretamente ao entrar no dashboard');
+        logDebug('Verificando estado de autenticação no dashboard');
+        
+        // Se o contexto ainda está carregando, aguardar
+        if (authLoading) {
+          logDebug('Contexto de autenticação ainda carregando, aguardando...');
+          return;
+        }
+        
+        // Se já temos perfil e sessão, considerar autenticado
+        if (profile && session) {
+          logDebug('Usuário autenticado com perfil:', {
+            userId: profile.id,
+            role: profile.role,
+            name: profile.name
+          });
+          setIsLoading(false);
+          return;
+        }
+        
+        // Se não temos sessão no AuthContext, verificar diretamente
         const { data, error: sessionError } = await supabase.auth.getSession();
         
         if (sessionError) {
           logError('Erro ao verificar sessão no dashboard', sessionError);
-          // Não redirecionamos aqui, deixamos o ProtectedRoute fazer isso
-          return;
+          throw new Error('Falha ao verificar autenticação');
         }
         
         if (!data.session) {
-          logDebug('Sem sessão válida no dashboard, delegando ao ProtectedRoute');
-          // O ProtectedRoute vai cuidar do redirecionamento
+          logDebug('Sem sessão válida no dashboard, redirecionando para login');
+          router.push('/login');
           return;
         }
         
-        logDebug('Sessão válida encontrada diretamente:', { userId: data.session.user.id });
+        // Temos sessão, verificar se temos um perfil para este usuário
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', data.session.user.id)
+          .single();
+          
+        if (profileError && profileError.code !== 'PGRST116') {
+          logError('Erro ao verificar perfil do usuário', profileError);
+          throw new Error('Falha ao verificar perfil');
+        }
+        
+        if (profileData) {
+          logDebug('Perfil do usuário encontrado diretamente:', profileData);
+          setIsLoading(false);
+          return;
+        }
+        
+        // Sem perfil, mas com sessão - situação menos comum
+        logDebug('Sessão encontrada, mas sem perfil. Mostrando dashboard limitado');
+        setIsLoading(false);
       } catch (err) {
-        logError('Erro ao verificar sessão diretamente', err);
+        logError('Erro ao verificar autenticação no dashboard:', err);
+        setError('Não foi possível carregar o dashboard. Verifique sua conexão.');
+        setIsLoading(false);
       }
     };
     
-    verifySessionDirect();
-  }, []);
+    verifyAuthState();
+  }, [authLoading, profile, session, router]);
 
   // Verificar se o contexto de favoritos está disponível
   useEffect(() => {
     try {
-      logDebug('Verificando contexto de autenticação:', profile);
-      setIsLoading(false);
+      logDebug('Verificando contexto de favoritos disponível');
+      // Iniciar carregamento de favoritos se necessário...
     } catch (err) {
-      logError('Erro ao carregar dashboard:', err);
-      setError('Erro ao carregar o dashboard. Tente recarregar a página.');
-      setIsLoading(false);
+      logError('Erro ao inicializar contexto de favoritos:', err);
     }
   }, [profile]);
 
