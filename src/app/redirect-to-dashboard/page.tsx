@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -21,7 +21,7 @@ const logError = (message: string, error?: any) => {
   console.error(`[${timestamp}] ❌ REDIRECT ERROR: ${message}`, error);
 };
 
-export default function RedirectToDashboard() {
+function RedirectContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -214,4 +214,23 @@ export default function RedirectToDashboard() {
 
   // Este return nunca deve ser alcançado normalmente, mas é necessário para satisfazer o React
   return null;
+}
+
+// Componente para mostrar durante o carregamento
+function RedirectLoading() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <h1 className="text-2xl font-bold mb-2 text-blue-600">Carregando...</h1>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+      <p className="text-gray-600">Preparando redirecionamento...</p>
+    </div>
+  );
+}
+
+export default function RedirectToDashboard() {
+  return (
+    <Suspense fallback={<RedirectLoading />}>
+      <RedirectContent />
+    </Suspense>
+  );
 } 
