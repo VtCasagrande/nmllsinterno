@@ -26,8 +26,13 @@ const logError = (message: string, error?: any) => {
 // Função para forçar o redirecionamento
 const forceRedirect = (url: string) => {
   logDebug(`🔄 FORÇANDO REDIRECIONAMENTO para: ${url}`);
-  // Usando window.location para garantir um redirecionamento completo
-  window.location.href = url;
+  // Usar um método mais confiável para redirecionar
+  try {
+    window.location.replace(url);
+  } catch (err) {
+    logError('Erro ao usar location.replace, tentando location.href:', err);
+    window.location.href = url;
+  }
 };
 
 function LoginContent() {
@@ -221,8 +226,8 @@ function LoginContent() {
         sessionId: data.session?.access_token.substring(0, 10) + '...',
       });
       
-      // Aguardar um momento para garantir que o perfil foi carregado
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Aguardar um momento para garantir que o perfil seja carregado
+      await new Promise(resolve => setTimeout(resolve, 800));
       
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';

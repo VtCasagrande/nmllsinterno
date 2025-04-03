@@ -149,7 +149,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const { user, profile, loading } = useAuth();
+  const { user, profile, loading, session } = useAuth();
   const [entregasSubmenuOpen, setEntregasSubmenuOpen] = useState(false);
   const [admSubmenuOpen, setAdmSubmenuOpen] = useState(false);
   const [modulosSubmenuOpen, setModulosSubmenuOpen] = useState(false);
@@ -160,18 +160,32 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       if (!loading) { // Espera o contexto de autenticação terminar de carregar
+        // Se já temos perfil ou sessão, permitir acesso
+        if (profile || session) {
+          return;
+        }
+        
+        // Verificar se há uma sessão válida no Supabase
         const { data } = await supabase.auth.getSession();
         if (!data.session) {
           console.log('Sem sessão válida, redirecionando para login');
           // Redirecionar para a página de login com o caminho atual como redirecionamento
           const currentPath = window.location.pathname;
-          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
+          
+          // Usar um método mais confiável para redirecionar
+          try {
+            window.location.replace(loginUrl);
+          } catch (err) {
+            console.error('Erro ao redirecionar com replace, usando href:', err);
+            window.location.href = loginUrl;
+          }
         }
       }
     };
     
     checkAuth();
-  }, [loading, router]);
+  }, [loading, profile, session]);
   
   // Se estiver carregando, mostrar um loader
   if (loading) {

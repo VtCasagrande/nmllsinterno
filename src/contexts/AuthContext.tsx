@@ -65,6 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
 
   // Função para buscar o perfil do usuário
   const fetchProfile = async (userId: string) => {
@@ -90,6 +91,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (data) {
         logDebug('Perfil encontrado:', { id: data.id, role: data.role });
         setProfile(data);
+        setProfileLoaded(true);
         return data;
       } else {
         logDebug('Nenhum perfil encontrado para o ID:', userId);
@@ -169,6 +171,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
             
             setProfile(basicProfile);
+            setProfileLoaded(true);
           }
         } else {
           logDebug('Nenhuma sessão ativa encontrada');
@@ -197,13 +200,48 @@ export function AuthProvider({ children }: AuthProviderProps) {
           logDebug('Usuário fez login ou token atualizado', { userId: newSession.user.id });
           setSession(newSession);
           setUser(newSession.user);
-          await fetchProfile(newSession.user.id);
+          
+          // Resetar estado de perfil carregado
+          setProfileLoaded(false);
+          
+          // Buscar perfil do usuário
+          const userProfile = await fetchProfile(newSession.user.id);
+          
+          // Se não encontrou perfil, criar perfil básico
+          if (!userProfile) {
+            logDebug('Perfil não encontrado após evento de autenticação, criando perfil básico');
+            const basicProfile = {
+              id: newSession.user.id,
+              email: newSession.user.email,
+              role: 'user'
+            };
+            
+            // Tentar criar o perfil na tabela profiles
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([basicProfile]);
+                
+              if (insertError) {
+                logError('Erro ao criar perfil básico após evento:', insertError);
+              } else {
+                logDebug('Perfil básico criado com sucesso após evento');
+              }
+            } catch (insertErr) {
+              logError('Exceção ao criar perfil básico após evento:', insertErr);
+            }
+            
+            // Atualizar o estado com o perfil básico
+            setProfile(basicProfile);
+            setProfileLoaded(true);
+          }
         }
       } else if (event === 'SIGNED_OUT') {
         logDebug('Usuário fez logout');
         setSession(null);
         setUser(null);
         setProfile(null);
+        setProfileLoaded(false);
       } else if (event === 'USER_UPDATED') {
         logDebug('Dados do usuário atualizados');
         if (newSession) {
@@ -348,7 +386,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   logDebug('Renderizando AuthProvider', { 
     isAuthenticated: !!session,
-    hasProfile: !!profile,
+    hasProfile: !!profile || profileLoaded,
     isLoading: loading
   });
 

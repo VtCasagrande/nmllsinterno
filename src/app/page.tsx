@@ -3,25 +3,46 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 
+// Função de log para debugging
+const logDebug = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  if (data) {
+    console.log(`[${timestamp}] 🏠 HOME: ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] 🏠 HOME: ${message}`);
+  }
+};
+
 export default function HomePage() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        logDebug('Verificando autenticação na página inicial');
         const { data, error } = await supabase.auth.getSession();
         
-        if (!error && data.session) {
+        if (error) {
+          logDebug('Erro ao verificar sessão:', error);
+          window.location.href = '/login';
+          return;
+        }
+        
+        if (data.session) {
           // Usuário já está logado, redirecionar para dashboard
-          console.log('Usuário já autenticado, redirecionando para dashboard...');
-          window.location.href = window.location.origin + '/dashboard';
+          logDebug('Sessão ativa encontrada, redirecionando para dashboard');
+          
+          // Use setTimeout para dar tempo aos contextos de serem inicializados
+          setTimeout(() => {
+            window.location.href = '/dashboard';
+          }, 100);
         } else {
           // Redirecionar para login
-          console.log('Usuário não autenticado, redirecionando para login...');
-          window.location.href = window.location.origin + '/login';
+          logDebug('Usuário não autenticado, redirecionando para login');
+          window.location.href = '/login';
         }
       } catch (err) {
         console.error('Erro ao verificar autenticação:', err);
         // Em caso de erro, redirecionar para login
-        window.location.href = window.location.origin + '/login';
+        window.location.href = '/login';
       }
     };
     
