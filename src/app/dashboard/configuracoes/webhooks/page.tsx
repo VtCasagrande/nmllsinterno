@@ -8,29 +8,29 @@ import Link from 'next/link';
 
 // Descrições dos tipos de webhook
 const tiposWebhook = {
-  [WebhookEventType.BUG_REPORTADO]: {
-    titulo: 'Bugs',
-    descricao: 'Notificações quando novos bugs são reportados ou atualizados',
-    icone: Bug,
-    cor: 'text-red-500'
-  },
   [WebhookEventType.ENTREGA_EM_ROTA]: {
     titulo: 'Entregas',
     descricao: 'Atualizações sobre status de entregas',
     icone: Layers,
     cor: 'text-blue-500'
   },
-  [WebhookEventType.REEMBOLSO_CRIADO]: {
-    titulo: 'Reembolsos',
-    descricao: 'Eventos relacionados a reembolsos',
+  [WebhookEventType.PEDIDO_REALIZADO]: {
+    titulo: 'Pedidos',
+    descricao: 'Eventos relacionados a pedidos',
     icone: LinkIcon,
     cor: 'text-green-500'
   },
-  [WebhookEventType.SUGESTAO_CRIADA]: {
-    titulo: 'Sugestões',
-    descricao: 'Alertas sobre novas sugestões de produtos',
-    icone: AlertCircle,
+  [WebhookEventType.REEMBOLSO_SOLICITADO]: {
+    titulo: 'Reembolsos',
+    descricao: 'Eventos relacionados a reembolsos',
+    icone: LinkIcon,
     cor: 'text-orange-500'
+  },
+  [WebhookEventType.LEMBRETE_MEDICAMENTO]: {
+    titulo: 'Lembretes',
+    descricao: 'Alertas sobre lembretes de medicamentos',
+    icone: AlertCircle,
+    cor: 'text-purple-500'
   }
 };
 
@@ -73,7 +73,7 @@ export default function WebhooksPage() {
   const getTipoInfo = (evento: string | undefined) => {
     // Segurança: se o evento for undefined, usar o tipo padrão
     if (!evento) {
-      return tiposWebhook[WebhookEventType.BUG_REPORTADO];
+      return tiposWebhook[WebhookEventType.ENTREGA_EM_ROTA];
     }
     
     // Usar uma correspondência direta para os tipos comuns
@@ -82,20 +82,20 @@ export default function WebhooksPage() {
     }
     
     // Para outros tipos, categorizar por prefixo
-    if (evento.startsWith('bug_')) {
-      return tiposWebhook[WebhookEventType.BUG_REPORTADO];
-    } else if (evento.startsWith('entrega_') || evento.startsWith('devolucao_')) {
+    if (evento.startsWith('ENTREGA_')) {
       return tiposWebhook[WebhookEventType.ENTREGA_EM_ROTA];
-    } else if (evento.startsWith('reembolso_')) {
-      return tiposWebhook[WebhookEventType.REEMBOLSO_CRIADO];
-    } else if (evento.startsWith('sugestao_') || evento.startsWith('troca_')) {
-      return tiposWebhook[WebhookEventType.SUGESTAO_CRIADA];
-    } else if (evento.startsWith('lembrete_')) {
-      return tiposWebhook[WebhookEventType.SUGESTAO_CRIADA]; // Reutilizando o ícone das sugestões para lembretes
+    } else if (evento.startsWith('PEDIDO_')) {
+      return tiposWebhook[WebhookEventType.PEDIDO_REALIZADO];
+    } else if (evento.startsWith('REEMBOLSO_')) {
+      return tiposWebhook[WebhookEventType.REEMBOLSO_SOLICITADO];
+    } else if (evento.startsWith('PAGAMENTO_')) {
+      return tiposWebhook[WebhookEventType.PEDIDO_REALIZADO];
+    } else if (evento.startsWith('LEMBRETE_')) {
+      return tiposWebhook[WebhookEventType.LEMBRETE_MEDICAMENTO];
     }
     
     // Fallback para um tipo padrão
-    return tiposWebhook[WebhookEventType.BUG_REPORTADO];
+    return tiposWebhook[WebhookEventType.ENTREGA_EM_ROTA];
   };
 
   return (

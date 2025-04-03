@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const path = require('path');
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -13,6 +15,11 @@ const nextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  // Configuração do webpack para resolver aliases
+  webpack: (config) => {
+    config.resolve.alias['@'] = path.join(__dirname, 'src');
+    return config;
   },
   // Configuração de ambiente para produção
   env: {

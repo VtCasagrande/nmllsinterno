@@ -577,7 +577,9 @@ export default function DetalhesEntrega() {
       
       try {
         setLoading(true);
-        const entregaData = await rotasService.buscarRotaPorId(id);
+        // Garantir que id seja uma string para a função buscarRotaPorId
+        const rotaId = Array.isArray(id) ? id[0] : id;
+        const entregaData = await rotasService.buscarRotaPorId(rotaId);
         
         if (!entregaData) {
           setError('Entrega não encontrada');
@@ -587,7 +589,7 @@ export default function DetalhesEntrega() {
         setEntrega(entregaData);
         
         // Carregar fotos da entrega
-        const fotosEntrega = await rotasService.obterFotosEntrega(id);
+        const fotosEntrega = await rotasService.obterFotosEntrega(rotaId);
         setFotos(fotosEntrega);
         
       } catch (err) {
@@ -601,7 +603,9 @@ export default function DetalhesEntrega() {
     carregarEntrega();
     
     // Configurar atualizações em tempo real
-    const subscription = rotasService.obterAtualizacoesTempoReal(id, (atualizacao) => {
+    // Garantir que id seja uma string para as funções de serviço
+    const rotaId = Array.isArray(id) ? id[0] : id;
+    const subscription = rotasService.obterAtualizacoesTempoReal(rotaId, (atualizacao) => {
       // Atualizar o estado da entrega quando houver mudanças
       setEntrega((prevEntrega: any) => {
         if (!prevEntrega) return atualizacao;
@@ -627,8 +631,10 @@ export default function DetalhesEntrega() {
           async (position) => {
             try {
               const { latitude, longitude } = position.coords;
+              // Garantir que id seja uma string para as funções de serviço
+              const rotaId = Array.isArray(id) ? id[0] : id;
               await rotasService.atualizarLocalizacaoEntrega(
-                id,
+                rotaId,
                 latitude,
                 longitude,
                 profile.id
@@ -707,7 +713,9 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a assinatura...",
       });
       
-      const sucesso = await rotasService.adicionarAssinatura(id, assinaturaUrl, profile.id);
+      // Garantir que id seja uma string
+      const rotaId = Array.isArray(id) ? id[0] : id;
+      const sucesso = await rotasService.adicionarAssinatura(rotaId, assinaturaUrl, profile.id);
       
       if (sucesso) {
         toast({
@@ -751,7 +759,9 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a foto...",
       });
       
-      const fotoUrl = await rotasService.adicionarFotoEntrega(id, fotoFile, profile.id);
+      // Garantir que id seja uma string
+      const rotaId = Array.isArray(id) ? id[0] : id;
+      const fotoUrl = await rotasService.adicionarFotoEntrega(rotaId, fotoFile, profile.id);
       
       if (fotoUrl) {
         toast({
@@ -796,8 +806,10 @@ export default function DetalhesEntrega() {
         description: "Finalizando entrega...",
       });
       
+      // Garantir que id seja uma string
+      const rotaId = Array.isArray(id) ? id[0] : id;
       const sucesso = await rotasService.finalizarEntrega(
-        id, 
+        rotaId, 
         {
           assinatura: assinatura || undefined,
           observacoes: formFinalizarEntrega.observacoes,
@@ -847,9 +859,12 @@ export default function DetalhesEntrega() {
     try {
       setAtualizandoStatus(true);
       
+      // Garantir que id seja uma string
+      const rotaId = Array.isArray(id) ? id[0] : id;
+      
       // Se estiver iniciando a entrega (colocando em rota)
       if (novoStatus === StatusEntrega.EM_ROTA) {
-        await rotasService.atualizarStatusRota(id, 'em_andamento', profile.id);
+        await rotasService.atualizarStatusRota(rotaId, 'em_andamento', profile.id);
         
         toast({
           title: "Sucesso!",
@@ -870,7 +885,9 @@ export default function DetalhesEntrega() {
           isDanger: true,
           action: async () => {
             try {
-              await rotasService.atualizarStatusRota(id, 'cancelada', profile.id);
+              // Garantir que id seja uma string também dentro da action
+              const entregaId = Array.isArray(id) ? id[0] : id;
+              await rotasService.atualizarStatusRota(entregaId, 'cancelada', profile.id);
               
               toast({
                 title: "Entrega cancelada",

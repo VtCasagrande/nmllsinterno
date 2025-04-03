@@ -73,6 +73,16 @@ export enum StatusLembrete {
   FINALIZADO = 'finalizado'
 }
 
+export interface ProcessarLembretesResult {
+  sucesso: boolean;
+  mensagem: string;
+  atualizacoes?: Array<{
+    id: string;
+    proximoLembrete?: string;
+  }>;
+  erro?: string;
+}
+
 export interface LembreteMedicamento {
   id: string;
   clienteId: string;
@@ -98,6 +108,8 @@ export function useLembretesMedicamentos() {
   const [lembretes, setLembretes] = useState<LembreteMedicamento[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [processando, setProcessando] = useState(false);
+  const [resultadoProcessamento, setResultadoProcessamento] = useState<ProcessarLembretesResult | null>(null);
   const webhookHook = useWebhooksInterno();
 
   // Função para obter lembretes do servidor
@@ -400,16 +412,82 @@ export function useLembretesMedicamentos() {
     }
   };
 
+  // Função para processar os lembretes (verificar e atualizar os próximos lembretes)
+  const processarLembretes = async (): Promise<void> => {
+    if (processando) return;
+    
+    setProcessando(true);
+    try {
+      // Simulação de processamento
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Exemplo de resultado bem-sucedido
+      const resultado: ProcessarLembretesResult = {
+        sucesso: true,
+        mensagem: "Todos os lembretes foram processados com sucesso",
+        atualizacoes: [
+          { id: "1", proximoLembrete: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+          { id: "2", proximoLembrete: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString() }
+        ]
+      };
+      
+      setResultadoProcessamento(resultado);
+      
+      // Atualizar os lembretes locais com as novas datas
+      setLembretes(prevLembretes => 
+        prevLembretes.map(lembrete => {
+          const atualizacao = resultado.atualizacoes?.find(a => a.id === lembrete.id);
+          if (atualizacao?.proximoLembrete) {
+            return {
+              ...lembrete,
+              dataAtualizacao: new Date().toISOString()
+            };
+          }
+          return lembrete;
+        })
+      );
+      
+      // Disparar webhook
+      try {
+        await webhookHook.dispararEventoEmTodosWebhooks(
+          'LEMBRETES_PROCESSADOS', 
+          { 
+            quantidade: resultado.atualizacoes?.length || 0,
+            timestamp: new Date().toISOString()
+          }
+        );
+      } catch (err) {
+        console.error('Erro ao disparar webhook de processamento:', err);
+      }
+      
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Erro ao processar lembretes';
+      setError(errorMsg);
+      
+      setResultadoProcessamento({
+        sucesso: false,
+        mensagem: "Ocorreu um erro ao processar os lembretes",
+        erro: errorMsg
+      });
+      
+    } finally {
+      setProcessando(false);
+    }
+  };
+
   return {
     lembretes,
     loading,
     error,
+    processando,
+    resultadoProcessamento,
     obterLembretes,
     obterLembretePorId,
     criarLembrete,
     atualizarLembrete,
     excluirLembrete,
     finalizarLembrete,
-    enviarNotificacaoManual
+    enviarNotificacaoManual,
+    processarLembretes
   };
 } 

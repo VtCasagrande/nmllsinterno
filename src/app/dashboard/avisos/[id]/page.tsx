@@ -47,6 +47,7 @@ interface Reacao {
   id: string;
   avisoId: string;
   usuarioId: string;
+  usuarioNome: string;
   tipo: TipoReacao;
   dataCriacao: string;
 }
@@ -120,6 +121,7 @@ export default function AvisoDetalhesPage({ params }: PageProps) {
       id: 'reacao-' + Date.now(),
       avisoId,
       usuarioId: profile.id,
+      usuarioNome: profile.name,
       tipo,
       dataCriacao: new Date().toISOString()
     };

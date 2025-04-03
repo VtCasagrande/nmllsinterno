@@ -14,7 +14,7 @@ export default function NovoWebhookPage() {
   const [formData, setFormData] = useState({
     nome: '',
     url: '',
-    evento: WebhookEventType.ENTREGA_EM_ROTA,
+    eventos: [WebhookEventType.ENTREGA_EM_ROTA],
     status: WebhookStatus.ATIVO,
     chaveSecreta: ''
   });
@@ -26,6 +26,14 @@ export default function NovoWebhookPage() {
     if (type === 'checkbox') {
       const target = e.target as HTMLInputElement;
       processedValue = target.checked ? WebhookStatus.ATIVO : WebhookStatus.INATIVO;
+    }
+
+    if (name === 'evento') {
+      setFormData(prev => ({
+        ...prev,
+        eventos: [value as WebhookEventType]
+      }));
+      return;
     }
 
     setFormData(prev => ({
@@ -154,7 +162,7 @@ export default function NovoWebhookPage() {
             <select
               id="evento"
               name="evento"
-              value={formData.evento}
+              value={formData.eventos[0]}
               onChange={handleChange}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               required
@@ -162,46 +170,30 @@ export default function NovoWebhookPage() {
               <optgroup label="Eventos de Entregas">
                 <option value={WebhookEventType.ENTREGA_EM_ROTA}>Entregas - Entrega em Rota</option>
                 <option value={WebhookEventType.ENTREGA_ENTREGUE}>Entregas - Entrega Concluída</option>
-                <option value={WebhookEventType.ENTREGA_CANCELADA}>Entregas - Entrega Cancelada</option>
-                <option value={WebhookEventType.ENTREGA_PROBLEMA}>Entregas - Problema na Entrega</option>
+                <option value={WebhookEventType.ENTREGA_ATRASADA}>Entregas - Entrega Atrasada</option>
               </optgroup>
               
-              <optgroup label="Eventos de Devoluções">
-                <option value={WebhookEventType.DEVOLUCAO_INICIADA}>Devoluções - Devolução Iniciada</option>
-                <option value={WebhookEventType.DEVOLUCAO_APROVADA}>Devoluções - Devolução Aprovada</option>
-                <option value={WebhookEventType.DEVOLUCAO_REJEITADA}>Devoluções - Devolução Rejeitada</option>
+              <optgroup label="Eventos de Pedidos">
+                <option value={WebhookEventType.PEDIDO_REALIZADO}>Pedidos - Realizado</option>
+                <option value={WebhookEventType.PEDIDO_APROVADO}>Pedidos - Aprovado</option>
+                <option value={WebhookEventType.PEDIDO_RECUSADO}>Pedidos - Recusado</option>
+                <option value={WebhookEventType.PEDIDO_ENVIADO}>Pedidos - Enviado</option>
+                <option value={WebhookEventType.PEDIDO_CANCELADO}>Pedidos - Cancelado</option>
               </optgroup>
               
-              <optgroup label="Eventos de Sugestões">
-                <option value={WebhookEventType.SUGESTAO_CRIADA}>Sugestões - Sugestão Criada</option>
-                <option value={WebhookEventType.SUGESTAO_PEDIDO_REALIZADO}>Sugestões - Pedido Realizado</option>
-                <option value={WebhookEventType.SUGESTAO_PRODUTO_CHEGOU}>Sugestões - Produto Chegou</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Trocas">
-                <option value={WebhookEventType.TROCA_CRIADA}>Trocas - Troca Criada</option>
-                <option value={WebhookEventType.TROCA_ATUALIZADA}>Trocas - Troca Atualizada</option>
-                <option value={WebhookEventType.TROCA_FINALIZADA}>Trocas - Troca Finalizada</option>
+              <optgroup label="Eventos de Pagamentos">
+                <option value={WebhookEventType.PAGAMENTO_APROVADO}>Pagamentos - Aprovado</option>
+                <option value={WebhookEventType.PAGAMENTO_RECUSADO}>Pagamentos - Recusado</option>
               </optgroup>
               
               <optgroup label="Eventos de Reembolsos">
-                <option value={WebhookEventType.REEMBOLSO_CRIADO}>Reembolsos - Reembolso Criado</option>
-                <option value={WebhookEventType.REEMBOLSO_ATUALIZADO}>Reembolsos - Reembolso Atualizado</option>
-                <option value={WebhookEventType.REEMBOLSO_STATUS_ATUALIZADO}>Reembolsos - Status Atualizado</option>
-                <option value={WebhookEventType.REEMBOLSO_EXCLUIDO}>Reembolsos - Reembolso Excluído</option>
+                <option value={WebhookEventType.REEMBOLSO_SOLICITADO}>Reembolsos - Solicitado</option>
+                <option value={WebhookEventType.REEMBOLSO_APROVADO}>Reembolsos - Aprovado</option>
+                <option value={WebhookEventType.REEMBOLSO_RECUSADO}>Reembolsos - Recusado</option>
               </optgroup>
               
-              <optgroup label="Eventos de Lembretes de Medicamentos">
-                <option value={WebhookEventType.LEMBRETE_MEDICAMENTO_CRIADO}>Medicamentos - Lembrete Criado</option>
-                <option value={WebhookEventType.LEMBRETE_MEDICAMENTO_ATUALIZADO}>Medicamentos - Lembrete Atualizado</option>
-                <option value={WebhookEventType.LEMBRETE_MEDICAMENTO_ENVIADO}>Medicamentos - Lembrete Enviado</option>
-                <option value={WebhookEventType.LEMBRETE_MEDICAMENTO_FINALIZADO}>Medicamentos - Lembrete Finalizado</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Bugs">
-                <option value={WebhookEventType.BUG_REPORTADO}>Bugs - Bug Reportado</option>
-                <option value={WebhookEventType.BUG_ATUALIZADO}>Bugs - Bug Atualizado</option>
-                <option value={WebhookEventType.BUG_RESOLVIDO}>Bugs - Bug Resolvido</option>
+              <optgroup label="Outros Eventos">
+                <option value={WebhookEventType.LEMBRETE_MEDICAMENTO}>Lembretes de Medicamentos</option>
               </optgroup>
             </select>
             <p className="mt-1 text-sm text-gray-500">
