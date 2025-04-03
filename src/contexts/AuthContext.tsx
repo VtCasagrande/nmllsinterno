@@ -140,9 +140,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const isLoginPage = pathname?.includes('/login');
       const isRedirectPage = pathname?.includes('/redirect-to-dashboard');
       
-      if (!isLoginPage && !isRedirectPage && pathname === '/') {
-        logDebug('Usuário autenticado, redirecionando para dashboard');
-        router.push('/dashboard');
+      // Obter o destino de redirecionamento da URL se disponível
+      let redirectPath = '/dashboard';
+      if (isLoginPage && typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+        if (redirectParam && redirectParam !== '/login') {
+          redirectPath = redirectParam;
+        }
+      }
+      
+      // Redirecionar para o dashboard ou destino especificado
+      if (isLoginPage) {
+        logDebug(`Usuário autenticado na página de login, redirecionando para: ${redirectPath}`);
+        
+        // Usar um pequeno timeout para garantir que os cookies sejam sincronizados
+        setTimeout(() => {
+          router.push(redirectPath);
+        }, 100);
       }
     }
   }, [loading, isAuthenticated, hasProfile, pathname, router]);
@@ -172,6 +187,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             expiresAt: currentSession.expires_at
           });
           
+          // Atualizar estado com a sessão
           setSession(currentSession);
           setUser(currentSession.user);
           setIsAuthenticated(true);
@@ -235,6 +251,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         if (newSession) {
           logDebug('Usuário fez login ou token atualizado', { userId: newSession.user.id });
+          
+          // Atualizar o estado com a nova sessão
           setSession(newSession);
           setUser(newSession.user);
           setIsAuthenticated(true);
@@ -243,45 +261,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
           setProfileLoaded(false);
           
           // Buscar perfil do usuário
-          const userProfile = await fetchProfile(newSession.user.id);
-          
-          // Se não encontrou perfil, criar perfil básico
-          if (!userProfile) {
-            logDebug('Perfil não encontrado após evento de autenticação, criando perfil básico');
-            const basicProfile = {
-              id: newSession.user.id,
-              email: newSession.user.email,
-              role: 'user'
-            };
+          try {
+            const userProfile = await fetchProfile(newSession.user.id);
             
-            // Tentar criar o perfil na tabela profiles
-            try {
-              const { error: insertError } = await supabase
-                .from('profiles')
-                .insert([basicProfile]);
-                
-              if (insertError) {
-                logError('Erro ao criar perfil básico após evento:', insertError);
+            // Se não encontrou perfil, criar perfil básico
+            if (!userProfile) {
+              logDebug('Perfil não encontrado após evento de autenticação, criando perfil básico');
+              const basicProfile = {
+                id: newSession.user.id,
+                email: newSession.user.email,
+                role: 'user'
+              };
+              
+              // Tentar criar o perfil na tabela profiles
+              try {
+                const { error: insertError } = await supabase
+                  .from('profiles')
+                  .insert([basicProfile]);
+                  
+                if (insertError) {
+                  logError('Erro ao criar perfil básico após evento:', insertError);
+                  setHasProfile(false);
+                } else {
+                  logDebug('Perfil básico criado com sucesso após evento');
+                  setProfile(basicProfile);
+                  setProfileLoaded(true);
+                  setHasProfile(true);
+                }
+              } catch (insertErr) {
+                logError('Exceção ao criar perfil básico após evento:', insertErr);
                 setHasProfile(false);
-              } else {
-                logDebug('Perfil básico criado com sucesso após evento');
-                setProfile(basicProfile);
-                setProfileLoaded(true);
-                setHasProfile(true);
               }
-            } catch (insertErr) {
-              logError('Exceção ao criar perfil básico após evento:', insertErr);
-              setHasProfile(false);
             }
-          }
-          
-          // Verificar se o usuário deve ser redirecionado
-          const isLoginPage = pathname?.includes('/login');
-          const isRedirectPage = pathname?.includes('/redirect-to-dashboard');
-          
-          if (isLoginPage || (isAuthenticated && hasProfile && !isRedirectPage)) {
-            logDebug('Redirecionando para o dashboard após autenticação');
-            router.push('/dashboard');
+
+            // Determinar o redirecionamento baseado na página atual
+            if (pathname?.includes('/login')) {
+              let redirectPath = '/dashboard';
+              if (typeof window !== 'undefined') {
+                const urlParams = new URLSearchParams(window.location.search);
+                const redirectParam = urlParams.get('redirect');
+                if (redirectParam && !redirectParam.includes('/login')) {
+                  redirectPath = redirectParam;
+                }
+              }
+              
+              logDebug(`Redirecionando para ${redirectPath} após autenticação`);
+              // Usar window.location para uma navegação completa que atualize o estado dos cookies
+              window.location.href = redirectPath;
+            }
+          } catch (error) {
+            logError('Erro ao processar profile após autenticação:', error);
           }
         }
       } else if (event === 'SIGNED_OUT') {
@@ -293,8 +322,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsAuthenticated(false);
         setHasProfile(false);
         
-        // Redirecionar para login após logout
-        router.push('/login');
+        // Redirecionar para login após logout usando window.location para garantir refresh total
+        window.location.href = '/login';
       } else if (event === 'USER_UPDATED') {
         logDebug('Dados do usuário atualizados');
         if (newSession) {

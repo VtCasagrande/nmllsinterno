@@ -128,8 +128,18 @@ function LoginContent() {
       
       if (result.success) {
         logDebug('Login bem-sucedido, o contexto de autenticação cuidará do redirecionamento');
-        // Não precisamos mais redirecionar aqui, o AuthContext fará isso
-        // automaticamente após o evento de login e verificação do perfil
+        
+        // Permitir um pequeno delay para garantir que os cookies sejam sincronizados
+        setTimeout(() => {
+          // Obter o destino de redirecionamento da URL se disponível
+          const urlParams = new URLSearchParams(window.location.search);
+          const redirectParam = urlParams.get('redirect') || '/dashboard';
+          
+          // Usar window.location.href para garantir um refresh completo da página
+          // Isso garante que o middleware verá os cookies atualizados
+          logDebug(`Redirecionando para: ${redirectParam}`);
+          window.location.href = redirectParam;
+        }, 300); // Delay maior para garantir que os cookies estejam configurados
       } else {
         setLoginMessage({
           type: 'error',
@@ -149,8 +159,8 @@ function LoginContent() {
   
   // Função para acessar dashboard diretamente
   const acessarDashboardDiretamente = () => {
-    // Vamos tentar acessar o dashboard diretamente
-    router.push('/dashboard');
+    // Limpar qualquer parâmetro de erro ou loop
+    window.location.href = '/dashboard?_auth_bypass=true';
   };
   
   return (
