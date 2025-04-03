@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Interface para o banco de dados simulado
-interface UserFavorites {
-  [id: string]: string[];  // Mapa de ID do usuário para lista de favoritos
-}
+// Banco de dados em memória (simulado)
+// Em produção, isso seria substituído por um banco de dados real
+const userFavoritesDB: Record<string, string[]> = {};
 
-// Função de log melhorada para exibir no console
+// Função de log para facilitar o diagnóstico
 const logDebug = (message: string, data?: any) => {
   const timestamp = new Date().toISOString();
   if (data) {
@@ -15,136 +14,121 @@ const logDebug = (message: string, data?: any) => {
   }
 };
 
-// Função de log de erro melhorada
-const logError = (message: string, error?: any) => {
-  const timestamp = new Date().toISOString();
-  console.error(`[${timestamp}] ❌ FAVORITES API ERROR: ${message}`, error);
-};
-
-// Banco de dados em memória (simulado)
-// Em produção, isso seria substituído por um banco de dados real
-let userFavoritesDB: UserFavorites = {};
-
-// Garantir uma resposta de erro bem formatada
-function createErrorResponse(message: string, status: number = 500) {
-  try {
-    return NextResponse.json(
-      { error: message, success: false, favorites: [] },
-      { status, headers: { 'Content-Type': 'application/json' } }
-    );
-  } catch (error) {
-    logError('Erro ao criar resposta de erro:', error);
-    // Resposta de fallback em caso de problemas
-    return new NextResponse(
-      JSON.stringify({ error: message, success: false, favorites: [] }),
-      { status, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-}
-
-// GET /api/users/[id]/favorites
+/**
+ * GET /api/users/[id]/favorites
+ * Retorna a lista de favoritos de um usuário
+ */
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
-    logDebug(`Recebida solicitação GET para favoritos do usuário ID: ${id}`);
+    // Registrar a solicitação para debug
+    logDebug(`Recebida solicitação GET para favoritos do usuário ID: ${params.id}`);
     
-    // Validação básica
-    if (!id) {
-      logError('ID de usuário não fornecido');
-      return createErrorResponse('ID de usuário não fornecido', 400);
+    // Garantir que temos um ID válido
+    if (!params.id) {
+      return NextResponse.json(
+        { error: 'ID de usuário não fornecido', favorites: [] },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
     
-    // Recupera os favoritos do usuário do banco de dados simulado
-    const userFavorites = userFavoritesDB[id] || [];
-    logDebug(`Favoritos encontrados para o usuário ${id}:`, userFavorites);
+    // Recuperar os favoritos do usuário (ou um array vazio se não houver)
+    const favorites = userFavoritesDB[params.id] || [];
+    logDebug(`Retornando ${favorites.length} favoritos para o usuário ${params.id}`);
     
-    // Retorna os favoritos do usuário com headers explícitos
+    // Retornar os favoritos como JSON
     return NextResponse.json(
-      { favorites: userFavorites, success: true },
+      { favorites, success: true },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    logError('Erro ao buscar favoritos:', error);
-    return createErrorResponse('Erro ao buscar favoritos');
+    // Registrar o erro, mas ainda retornar um JSON válido
+    console.error('Erro ao processar solicitação de favoritos:', error);
+    
+    return NextResponse.json(
+      { error: 'Erro interno do servidor', favorites: [] },
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
-// PUT /api/users/[id]/favorites
+/**
+ * PUT /api/users/[id]/favorites
+ * Atualiza a lista de favoritos de um usuário
+ */
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const id = params.id;
-    logDebug(`Recebida solicitação PUT para favoritos do usuário ID: ${id}`);
+    // Registrar a solicitação para debug
+    logDebug(`Recebida solicitação PUT para favoritos do usuário ID: ${params.id}`);
     
-    // Validação básica
-    if (!id) {
-      logError('ID de usuário não fornecido');
-      return createErrorResponse('ID de usuário não fornecido', 400);
+    // Garantir que temos um ID válido
+    if (!params.id) {
+      return NextResponse.json(
+        { error: 'ID de usuário não fornecido', favorites: [] },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
     
-    // Obtém o corpo da requisição
+    // Analisar o corpo da requisição
     let body;
     try {
       body = await request.json();
-      logDebug(`Corpo da requisição:`, body);
-    } catch (parseError) {
-      logError('Erro ao analisar JSON da requisição:', parseError);
-      return createErrorResponse('Formato de dados inválido na requisição', 400);
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Corpo da requisição inválido', favorites: [] },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
     
-    // Validação do corpo da requisição
+    // Validar o corpo da requisição
     if (!body || !Array.isArray(body.favorites)) {
-      logError('Formato de dados inválido na requisição:', body);
-      return createErrorResponse('Formato de dados inválido', 400);
+      return NextResponse.json(
+        { error: 'Formato inválido. Esperado: { favorites: string[] }', favorites: [] },
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
     
-    // Atualiza os favoritos do usuário no banco de dados simulado
-    userFavoritesDB[id] = body.favorites;
-    logDebug(`Favoritos atualizados para o usuário ${id}:`, userFavoritesDB[id]);
+    // Atualizar os favoritos do usuário
+    userFavoritesDB[params.id] = body.favorites;
+    logDebug(`Atualizados ${body.favorites.length} favoritos para o usuário ${params.id}`);
     
-    // Simula um pequeno atraso para reproduzir o comportamento de um banco de dados real
-    await new Promise(resolve => setTimeout(resolve, 300));
-    
-    // Retorna os favoritos atualizados com headers explícitos
+    // Retornar os favoritos atualizados
     return NextResponse.json(
       { 
-        favorites: userFavoritesDB[id],
+        favorites: userFavoritesDB[params.id],
         message: 'Favoritos atualizados com sucesso',
         success: true 
       },
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    logError('Erro ao atualizar favoritos:', error);
-    return createErrorResponse('Erro ao atualizar favoritos');
+    // Registrar o erro, mas ainda retornar um JSON válido
+    console.error('Erro ao processar atualização de favoritos:', error);
+    
+    return NextResponse.json(
+      { error: 'Erro interno do servidor', favorites: [] },
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 }
 
-// OPTIONS /api/users/[id]/favorites - Para suporte a CORS preflight
-export async function OPTIONS(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    logDebug(`Recebida solicitação OPTIONS para favoritos do usuário ID: ${params.id}`);
-    
-    // Retornar cabeçalhos CORS apropriados
-    return new NextResponse(null, {
-      status: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Content-Type': 'application/json'
-      }
-    });
-  } catch (error) {
-    logError('Erro ao processar OPTIONS:', error);
-    return createErrorResponse('Erro interno do servidor');
-  }
+/**
+ * OPTIONS /api/users/[id]/favorites
+ * Suporte para requisições CORS preflight
+ */
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Content-Type': 'application/json'
+    }
+  });
 } 

@@ -42,46 +42,70 @@ const favoritesService = {
     try {
       logDebug(`Buscando favoritos para usuário: ${userId}`);
       
-      // Tentar buscar da API
+      // Verificar se o userId é válido
+      if (!userId) {
+        logDebug('ID de usuário inválido, retornando array vazio');
+        return [];
+      }
+      
+      // Tentar buscar da API com tratamento de timeout
       try {
         const apiUrl = `/api/users/${userId}/favorites`;
         logDebug(`Chamando API: ${apiUrl}`);
         
-        const response = await fetch(apiUrl);
+        // Criar um timeout para evitar que a requisição bloqueie por muito tempo
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos de timeout
         
+        const response = await fetch(apiUrl, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // Tratar erro de status HTTP
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Erro desconhecido');
           logError(`API respondeu com status ${response.status}: ${errorText}`);
-          // Falha na API, não interromper o fluxo, usar fallback
           throw new Error(`API respondeu com status ${response.status}`);
         }
         
+        // Tratar erro de parsing JSON com mais detalhes
+        let data;
         try {
-          const data = await response.json();
+          const text = await response.text();
+          
+          // Log do texto bruto para diagnóstico em caso de erro
+          if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+            logError('Resposta HTML detectada em vez de JSON:', text.substring(0, 100));
+            throw new Error('Resposta HTML detectada em vez de JSON');
+          }
+          
+          // Tentar fazer o parse do JSON
+          data = JSON.parse(text);
           logDebug('Favoritos obtidos com sucesso da API:', data);
-          return data.favorites || [];
+          return Array.isArray(data.favorites) ? data.favorites : [];
         } catch (jsonError) {
-          // Erro ao processar o JSON (possível HTML no lugar de JSON)
           logError('Erro ao processar resposta JSON da API:', jsonError);
           throw new Error('Resposta da API não é um JSON válido');
         }
       } catch (apiError) {
-        logError('Erro ao buscar favoritos da API:', apiError);
+        // Falha na API, usar fallback
+        logError('Erro ao buscar favoritos da API, usando fallback:', apiError);
         
-        // Fallback para localStorage se a API falhar
-        logDebug('Tentando fallback para localStorage');
         try {
+          // Tentar obter do localStorage
           const storedFavorites = localStorage.getItem(`favorites-${userId}`);
           if (storedFavorites) {
             const parsedFavorites = JSON.parse(storedFavorites);
             logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
-            return parsedFavorites;
+            return Array.isArray(parsedFavorites) ? parsedFavorites : [];
           }
         } catch (localStorageError) {
           logError('Erro ao acessar localStorage:', localStorageError);
         }
         
-        logDebug('Nenhum favorito encontrado no fallback, retornando array vazio');
+        // Se tudo falhar, retornar array vazio
         return [];
       }
     } catch (error) {
@@ -93,34 +117,48 @@ const favoritesService = {
   // Salvar favoritos do usuário
   async saveFavorites(userId: string, favorites: string[]): Promise<boolean> {
     try {
+      // Verificar se o userId é válido
+      if (!userId) {
+        logError('Tentativa de salvar favoritos com ID inválido');
+        return false;
+      }
+      
       logDebug(`Salvando favoritos para usuário ${userId}:`, favorites);
       
-      // Salvar no localStorage como backup
+      // Salvar no localStorage como backup imediato
       localStorage.setItem(`favorites-${userId}`, JSON.stringify(favorites));
       logDebug('Favoritos salvos no localStorage com sucesso');
       
-      // Tentar salvar na API
+      // Tentar salvar na API com tratamento de timeout
       try {
         const apiUrl = `/api/users/${userId}/favorites`;
         logDebug(`Chamando API (PUT): ${apiUrl}`);
         
+        // Criar um timeout para evitar que a requisição bloqueie por muito tempo
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos de timeout
+        
         const response = await fetch(apiUrl, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ favorites })
+          body: JSON.stringify({ favorites }),
+          signal: controller.signal
         });
+        
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Erro desconhecido');
           logError(`API respondeu com status ${response.status} ao salvar: ${errorText}`);
-          throw new Error(`API respondeu com status ${response.status}`);
+          // Não lançar erro, pois já salvamos no localStorage
+          return true;
         }
         
         const data = await response.json();
         logDebug('Favoritos salvos com sucesso na API:', data);
         return true;
       } catch (apiError) {
-        logError('Erro ao salvar favoritos na API:', apiError);
+        logError('Erro ao salvar favoritos na API, mas salvos no localStorage:', apiError);
         // Consideramos que salvar no localStorage já foi suficiente como fallback
         return true;
       }
@@ -134,53 +172,51 @@ const favoritesService = {
 export function FavoritesProvider({ children }: FavoritesProviderProps) {
   const { profile } = useAuth();
   const [favorites, setFavorites] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Começar com false para não bloquear o fluxo
   
   // Carrega os favoritos do servidor/API ao iniciar
   useEffect(() => {
     async function loadFavorites() {
-      logDebug('Iniciando carregamento de favoritos');
-      
-      if (!profile?.id) {
-        logDebug('Perfil não disponível, limpando favoritos');
-        setFavorites([]);
-        setIsLoading(false);
-        return;
-      }
-      
       try {
+        if (!profile?.id) {
+          logDebug('Perfil não disponível, mantendo array de favoritos vazio');
+          setFavorites([]);
+          return;
+        }
+        
         logDebug(`Carregando favoritos para usuário: ${profile.id}`);
         setIsLoading(true);
         
-        // Primeiro tenta carregar do localStorage para feedback rápido
-        try {
-          const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
-          if (storedFavorites) {
-            const parsedFavorites = JSON.parse(storedFavorites);
-            logDebug('Favoritos recuperados do localStorage inicialmente:', parsedFavorites);
-            setFavorites(parsedFavorites);
+        // Carregando com timeout para não bloquear a interface
+        setTimeout(async () => {
+          try {
+            // Primeiro tenta carregar do localStorage para feedback rápido
+            try {
+              const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
+              if (storedFavorites) {
+                const parsedFavorites = JSON.parse(storedFavorites);
+                logDebug('Favoritos recuperados do localStorage inicialmente:', parsedFavorites);
+                setFavorites(Array.isArray(parsedFavorites) ? parsedFavorites : []);
+              }
+            } catch (localError) {
+              logError('Erro ao recuperar favoritos do localStorage:', localError);
+            }
+            
+            // Agora tenta carregar da API de forma não-bloqueante
+            const userFavorites = await favoritesService.getFavorites(profile.id);
+            logDebug(`${userFavorites.length} favoritos carregados com sucesso`);
+            setFavorites(userFavorites);
+          } catch (error) {
+            logError('Erro ao carregar favoritos:', error);
+            // Não fazer nada em caso de erro, manter os favoritos do localStorage ou array vazio
+          } finally {
+            setIsLoading(false);
           }
-        } catch (localError) {
-          logError('Erro ao recuperar favoritos do localStorage:', localError);
-        }
-        
-        // Agora tenta carregar da API para ter os dados mais atualizados
-        try {
-          const userFavorites = await favoritesService.getFavorites(profile.id);
-          logDebug(`${userFavorites.length} favoritos carregados com sucesso`);
-          setFavorites(userFavorites);
-        } catch (apiError) {
-          // Não fazer nada, já estamos usando os dados do localStorage
-          // ou array vazio como fallback
-          logError('Erro ao carregar favoritos da API, continuando com fallback:', apiError);
-        }
+        }, 100); // Atraso pequeno para não bloquear o fluxo
       } catch (error) {
-        logError('Erro ao carregar favoritos do servidor:', error);
-        // Em caso de erro crítico, garantir um array vazio para não impactar o login
+        logError('Erro crítico no carregamento de favoritos:', error);
         setFavorites([]);
-      } finally {
         setIsLoading(false);
-        logDebug('Carregamento de favoritos finalizado');
       }
     }
     
@@ -192,7 +228,7 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
     try {
       logDebug(`Alternando favorito: ${appId}`);
       
-      if (!profile) {
+      if (!profile?.id) {
         logError('Tentativa de alternar favorito sem perfil disponível');
         return;
       }
@@ -208,35 +244,30 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
           newFavorites = [...prevFavorites, appId];
         }
         
-        // Salva imediatamente no estado para feedback instantâneo ao usuário
+        // Atualiza estado imediatamente
         return newFavorites;
       });
       
-      // Salvar imediatamente no localStorage
+      // Salvar no localStorage imediatamente e na API de forma assíncrona
       localStorage.setItem(`favorites-${profile.id}`, JSON.stringify(newFavorites));
-      
-      // Agora salva no servidor/API (assíncrono)
-      const saved = await favoritesService.saveFavorites(profile.id, newFavorites);
-      
-      if (saved) {
-        logDebug('Favoritos salvos com sucesso');
-      } else {
-        logError('Falha ao salvar favoritos');
-      }
+      favoritesService.saveFavorites(profile.id, newFavorites)
+        .then(success => {
+          if (success) {
+            logDebug('Favoritos salvos com sucesso');
+          } else {
+            logError('Falha ao salvar favoritos na API');
+          }
+        })
+        .catch(error => {
+          logError('Erro ao alternar favorito:', error);
+        });
     } catch (error) {
-      logError('Erro ao alternar favorito:', error);
-      
-      // Em caso de erro, recarrega os favoritos para garantir consistência
-      if (profile) {
-        logDebug('Recarregando favoritos após erro');
-        const serverFavorites = await favoritesService.getFavorites(profile.id);
-        setFavorites(serverFavorites);
-      }
+      logError('Erro crítico ao alternar favorito:', error);
     }
   };
   
   // Verifica se um app é favorito
-  const isFavorite = (appId: string) => {
+  const isFavorite = (appId: string): boolean => {
     try {
       return favorites.includes(appId);
     } catch (error) {
