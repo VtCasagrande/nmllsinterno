@@ -2,7 +2,7 @@
 
 import { ReactNode, useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Menu, X, Home, Truck, Package, User, LogOut, ChevronDown, 
   Settings, BarChart2, ShoppingCart, Repeat, BellRing, 
@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarLinkProps {
   href: string;
@@ -144,10 +145,46 @@ function SidebarSubmenu({ text, isActive, isOpen, onClick, icon, children, toolt
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const { user, profile, loading } = useAuth();
+  const [entregasSubmenuOpen, setEntregasSubmenuOpen] = useState(false);
+  const [admSubmenuOpen, setAdmSubmenuOpen] = useState(false);
+  const [modulosSubmenuOpen, setModulosSubmenuOpen] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  
+  // Verificar autenticação
+  useEffect(() => {
+    const checkAuth = async () => {
+      if (!loading) { // Espera o contexto de autenticação terminar de carregar
+        const { data } = await supabase.auth.getSession();
+        if (!data.session) {
+          console.log('Sem sessão válida, redirecionando para login');
+          // Redirecionar para a página de login com o caminho atual como redirecionamento
+          const currentPath = window.location.pathname;
+          window.location.href = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        }
+      }
+    };
+    
+    checkAuth();
+  }, [loading, router]);
+  
+  // Se estiver carregando, mostrar um loader
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+  
   const [error, setError] = useState<string | null>(null);
   
   // Submenus para cada categoria
-  const [entregasSubmenuOpen, setEntregasSubmenuOpen] = useState(false);
   const [devolucoesSubmenuOpen, setDevolucoesSubmenuOpen] = useState(false);
   const [usuariosSubmenuOpen, setUsuariosSubmenuOpen] = useState(false);
   const [configuracoesSubmenuOpen, setConfiguracoesSubmenuOpen] = useState(false);
@@ -161,16 +198,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [avisosSubmenuOpen, setAvisosSubmenuOpen] = useState(false);
   const [logsSubmenuOpen, setLogsSubmenuOpen] = useState(false);
   
-  const pathname = usePathname();
-  
   // Usar try/catch para evitar erros ao acessar o contexto
   let signOut = () => {};
-  let profile = null;
   
   try {
     const auth = useAuth();
     signOut = auth.signOut;
-    profile = auth.profile;
   } catch (err) {
     console.error('Erro ao acessar contexto de autenticação:', err);
     setError('Erro ao carregar dados do usuário');

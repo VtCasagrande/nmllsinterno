@@ -26,18 +26,8 @@ const logError = (message: string, error?: any) => {
 // Função para forçar o redirecionamento
 const forceRedirect = (url: string) => {
   logDebug(`🔄 FORÇANDO REDIRECIONAMENTO para: ${url}`);
-  try {
-    // Usar diretamente location.href para mudar a URL
-    window.location.href = url;
-  } catch (err) {
-    logError('Erro ao forçar redirecionamento:', err);
-    // Como último recurso, tentar replace
-    try {
-      window.location.replace(url);
-    } catch (err2) {
-      logError('Erro ao usar location.replace:', err2);
-    }
-  }
+  // Usando window.location para garantir um redirecionamento completo
+  window.location.href = url;
 };
 
 function LoginContent() {
@@ -111,37 +101,37 @@ function LoginContent() {
     }
   }, [searchParams]);
   
-  // Verificar se já está autenticado ao carregar a página
+  // Verificar status de autenticação e redirecionar se necessário
   useEffect(() => {
-    const checkAuthStatus = async () => {
+    const checkAuthAndRedirect = async () => {
       try {
         logDebug('Verificando status de autenticação...');
         const { data, error } = await supabase.auth.getSession();
         
         if (error) {
-          logError('Erro ao obter sessão:', error);
+          logError('Erro ao verificar sessão:', error);
           return;
         }
         
-        logDebug('Sessão atual:', data);
-        
         if (data.session) {
-          logDebug(`Usuário autenticado, ID: ${data.session.user.id}`);
+          logDebug('Usuário já autenticado:', { userId: data.session.user.id });
           
-          // Forçar redirecionamento imediato para o dashboard
-          const dashboardUrl = window.location.origin + '/dashboard';
-          logDebug(`Redirecionando imediatamente para: ${dashboardUrl}`);
-          forceRedirect(dashboardUrl);
-        } else {
-          logDebug('Usuário não autenticado');
+          // Se já estiver autenticado, redirecionar para o dashboard
+          const redirectTo = searchParams.get('redirect') || '/dashboard';
+          const fullRedirectUrl = redirectTo.startsWith('/') 
+            ? window.location.origin + redirectTo
+            : redirectTo;
+            
+          logDebug(`Redirecionando usuário autenticado para: ${fullRedirectUrl}`);
+          setTimeout(() => forceRedirect(fullRedirectUrl), 100);
         }
       } catch (err) {
-        logError('Erro ao verificar sessão existente:', err);
+        logError('Erro ao verificar autenticação:', err);
       }
     };
     
-    checkAuthStatus();
-  }, []);
+    checkAuthAndRedirect();
+  }, [searchParams]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -230,6 +220,9 @@ function LoginContent() {
         userId: data.user?.id,
         sessionId: data.session?.access_token.substring(0, 10) + '...',
       });
+      
+      // Aguardar um momento para garantir que o perfil foi carregado
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';

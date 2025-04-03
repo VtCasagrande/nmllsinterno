@@ -31,128 +31,168 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
   const [authorized, setAuthorized] = useState(false);
   const [bypassAuth, setBypassAuth] = useState(false);
   const router = useRouter();
-  const { profile } = useAuth();
+  const { session, user, profile, loading: authLoading } = useAuth();
 
-  logDebug('Inicializando ProtectedRoute', { allowedRoles });
+  logDebug('Inicializando ProtectedRoute', { allowedRoles, authLoading, hasSession: !!session, hasProfile: !!profile });
 
   useEffect(() => {
     // Em modo de desenvolvimento, permitir ver a página sem autenticação
     // Isso é apenas para fins de desenvolvimento/demonstração
     const isDevelopment = process.env.NODE_ENV === 'development';
     
+    // Se o contexto de autenticação ainda estiver carregando, aguarde
+    if (authLoading) {
+      logDebug('Contexto de autenticação ainda está carregando, aguardando...');
+      return;
+    }
+
     // Verificação de autenticação usando Supabase
     const checkAuth = async () => {
       try {
         logDebug('Verificando autenticação');
         
-        // Verificar sessão do Supabase
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          logError('Erro ao verificar sessão:', sessionError);
+        // Se já temos uma sessão no contexto de autenticação, use-a
+        if (session && user) {
+          logDebug('Sessão ativa encontrada no contexto', { 
+            userId: user.id
+          });
           
-          if (isDevelopment) {
-            logDebug('Modo de desenvolvimento: permitindo acesso sem autenticação');
-            setBypassAuth(true);
-            setLoading(false);
-            return;
-          }
-          
-          logDebug('Redirecionando para login (erro na sessão)');
-          router.push('/login');
-          return;
-        }
-        
-        if (!sessionData.session) {
-          logDebug('Sem sessão ativa');
-          
-          if (isDevelopment) {
-            logDebug('Modo de desenvolvimento: permitindo acesso sem autenticação');
-            setBypassAuth(true);
-            setLoading(false);
-            return;
-          }
-          
-          logDebug('Redirecionando para login (sem sessão)');
-          router.push('/login');
-          return;
-        }
-        
-        logDebug('Sessão ativa encontrada', { 
-          userId: sessionData.session.user.id,
-          expiresAt: sessionData.session.expires_at
-        });
-        
-        // Verificar se temos o perfil do usuário do contexto de autenticação
-        if (!profile) {
-          logDebug('Perfil do usuário não encontrado no contexto');
-          
-          if (isDevelopment) {
-            logDebug('Modo de desenvolvimento: permitindo acesso sem perfil');
-            setBypassAuth(true);
-            setLoading(false);
-            return;
-          }
-
-          // Aguarde um pouco para ver se o perfil é carregado
-          logDebug('Aguardando carregamento do perfil...');
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          
-          // Se ainda não tiver perfil, busque direto do Supabase
-          logDebug('Tentando buscar perfil direto do Supabase');
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', sessionData.session.user.id)
-            .single();
+          // Verificar se temos o perfil do usuário
+          if (!profile) {
+            logDebug('Sessão existe mas perfil ainda não está disponível');
             
-          if (profileError || !profileData) {
-            logError('Erro ao buscar perfil direto:', profileError);
-            logDebug('Redirecionando para login (erro ao buscar perfil)');
+            if (isDevelopment) {
+              logDebug('Modo de desenvolvimento: permitindo acesso sem perfil');
+              setBypassAuth(true);
+              setLoading(false);
+              return;
+            }
+
+            // Em produção, aguarde um pouco mais antes de redirecionar
+            // Isso dá tempo para o perfil ser carregado pelo AuthContext
+            logDebug('Aguardando carregamento do perfil...');
+            
+            // Verificar direto no Supabase
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+              
+            if (profileError || !profileData) {
+              logError('Erro ao buscar perfil direto:', profileError);
+              // Falha ao buscar perfil, mas o usuário está autenticado
+              // Permitir acesso mesmo sem perfil completo
+              logDebug('Não foi possível buscar perfil, mas usuário está autenticado');
+              setAuthorized(true);
+              setLoading(false);
+              return;
+            }
+            
+            logDebug('Perfil encontrado diretamente do Supabase', profileData);
+            
+            // Verificar permissões com base no papel do usuário
+            const userRole = profileData.role || 'user';
+            
+            const hasRequiredRole = 
+              allowedRoles.length === 0 || 
+              allowedRoles.includes(userRole);
+              
+            if (!hasRequiredRole && !isDevelopment) {
+              logDebug('Acesso negado - redirecionando para dashboard');
+              alert('Você não tem permissão para acessar esta página.');
+              router.push('/dashboard');
+              return;
+            }
+            
+            setAuthorized(true);
+            setLoading(false);
+            return;
+          } else {
+            logDebug('Perfil encontrado no contexto', {
+              id: profile.id,
+              role: profile.role
+            });
+            
+            // Verificar permissões com base no papel do usuário
+            const userRole = profile.role || 'user';
+            
+            // Verificar se o papel do usuário está na lista de papéis permitidos
+            // Se allowedRoles estiver vazio, permitir qualquer usuário autenticado
+            const hasRequiredRole = 
+              allowedRoles.length === 0 || 
+              allowedRoles.includes(userRole);
+            
+            logDebug(`Verificando permissões: role=${userRole}, permitido=${hasRequiredRole}`);
+            
+            if (!hasRequiredRole) {
+              // Usuário não tem permissão
+              logDebug('Usuário sem permissão adequada');
+              
+              if (isDevelopment) {
+                logDebug('Modo de desenvolvimento: permitindo acesso mesmo sem permissão adequada');
+                setBypassAuth(true);
+                setLoading(false);
+                return;
+              }
+              
+              // Em produção, mostrar alerta e redirecionar
+              logDebug('Acesso negado - redirecionando para dashboard');
+              alert('Você não tem permissão para acessar esta página.');
+              router.push('/dashboard');
+              return;
+            }
+
+            // Usuário autenticado e autorizado
+            logDebug('Usuário autenticado e autorizado');
+            setAuthorized(true);
+            setLoading(false);
+            return;
+          }
+        } else {
+          // Não há sessão no contexto, verificar diretamente no Supabase
+          const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            logError('Erro ao verificar sessão:', sessionError);
+            
+            if (isDevelopment) {
+              logDebug('Modo de desenvolvimento: permitindo acesso sem autenticação');
+              setBypassAuth(true);
+              setLoading(false);
+              return;
+            }
+            
+            logDebug('Redirecionando para login (erro na sessão)');
             router.push('/login');
             return;
           }
           
-          logDebug('Perfil encontrado diretamente do Supabase', profileData);
-        } else {
-          logDebug('Perfil encontrado no contexto', {
-            id: profile.id,
-            role: profile.role
-          });
-        }
-        
-        // Verificar permissões com base no papel do usuário
-        const userRole = profile?.role || 'user';
-        
-        // Verificar se o papel do usuário está na lista de papéis permitidos
-        // Se allowedRoles estiver vazio, permitir qualquer usuário autenticado
-        const hasRequiredRole = 
-          allowedRoles.length === 0 || 
-          allowedRoles.includes(userRole);
-        
-        logDebug(`Verificando permissões: role=${userRole}, permitido=${hasRequiredRole}`);
-        
-        if (!hasRequiredRole) {
-          // Usuário não tem permissão
-          logDebug('Usuário sem permissão adequada');
-          
-          if (isDevelopment) {
-            logDebug('Modo de desenvolvimento: permitindo acesso mesmo sem permissão adequada');
-            setBypassAuth(true);
-            setLoading(false);
+          if (!sessionData.session) {
+            logDebug('Sem sessão ativa');
+            
+            if (isDevelopment) {
+              logDebug('Modo de desenvolvimento: permitindo acesso sem autenticação');
+              setBypassAuth(true);
+              setLoading(false);
+              return;
+            }
+            
+            logDebug('Redirecionando para login (sem sessão)');
+            router.push('/login');
             return;
           }
           
-          // Em produção, mostrar alerta e redirecionar
-          logDebug('Acesso negado - redirecionando para dashboard');
-          alert('Você não tem permissão para acessar esta página.');
-          router.push('/dashboard');
+          // Há uma sessão válida no Supabase, mas não está no contexto
+          // Isso não deveria acontecer normalmente, mas permitimos o acesso
+          logDebug('Sessão ativa encontrada diretamente no Supabase mas não no contexto', { 
+            userId: sessionData.session.user.id
+          });
+          
+          setAuthorized(true);
+          setLoading(false);
           return;
         }
-
-        // Usuário autenticado e autorizado
-        logDebug('Usuário autenticado e autorizado');
-        setAuthorized(true);
       } catch (error) {
         logError('Erro ao verificar autenticação:', error);
         
@@ -163,13 +203,13 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
           logDebug('Redirecionando para login (erro geral)');
           router.push('/login');
         }
-      } finally {
+        
         setLoading(false);
       }
     };
 
     checkAuth();
-  }, [router, allowedRoles, profile]);
+  }, [router, allowedRoles, session, profile, user, authLoading]);
 
   // Mostrar loader enquanto verifica autenticação
   if (loading) {

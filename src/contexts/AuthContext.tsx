@@ -77,8 +77,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
         .single();
 
       if (error) {
-        logError('Erro ao buscar perfil:', error);
-        throw error;
+        if (error.code === 'PGRST116') {
+          // Perfil não encontrado, o que é esperado para novos usuários
+          logDebug('Perfil não encontrado para o ID:', userId);
+          return null;
+        } else {
+          logError('Erro ao buscar perfil:', error);
+          throw error;
+        }
       }
 
       if (data) {
@@ -141,11 +147,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
           const userProfile = await fetchProfile(currentSession.user.id);
           if (!userProfile) {
             logDebug('Perfil não encontrado para usuário autenticado, criando um básico');
-            setProfile({
+            const basicProfile = {
               id: currentSession.user.id,
               email: currentSession.user.email,
               role: 'user'
-            });
+            };
+            
+            // Tentar criar o perfil na tabela profiles
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([basicProfile]);
+                
+              if (insertError) {
+                logError('Erro ao criar perfil básico:', insertError);
+              } else {
+                logDebug('Perfil básico criado com sucesso');
+              }
+            } catch (insertErr) {
+              logError('Exceção ao criar perfil básico:', insertErr);
+            }
+            
+            setProfile(basicProfile);
           }
         } else {
           logDebug('Nenhuma sessão ativa encontrada');
@@ -231,7 +254,45 @@ export function AuthProvider({ children }: AuthProviderProps) {
       
       // Se login bem-sucedido, buscar perfil
       if (data.user) {
-        await fetchProfile(data.user.id);
+        try {
+          const fetchedProfile = await fetchProfile(data.user.id);
+          
+          // Se não encontrou perfil, criar um básico
+          if (!fetchedProfile) {
+            logDebug('Perfil não encontrado após login, criando perfil básico');
+            const basicProfile = {
+              id: data.user.id,
+              email: data.user.email,
+              role: 'user'
+            };
+            
+            // Tentar criar o perfil na tabela profiles
+            try {
+              const { error: insertError } = await supabase
+                .from('profiles')
+                .insert([basicProfile]);
+                
+              if (insertError) {
+                logError('Erro ao criar perfil básico:', insertError);
+              } else {
+                logDebug('Perfil básico criado com sucesso');
+              }
+            } catch (insertErr) {
+              logError('Exceção ao criar perfil básico:', insertErr);
+            }
+            
+            // Atualizar o estado com o perfil básico mesmo se falhar na inserção
+            setProfile(basicProfile);
+          }
+        } catch (profileError) {
+          logError('Erro ao buscar/criar perfil após login:', profileError);
+          // Definir um perfil básico mesmo com erro
+          setProfile({
+            id: data.user.id,
+            email: data.user.email,
+            role: 'user'
+          });
+        }
       }
 
       return { success: true };
