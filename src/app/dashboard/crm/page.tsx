@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCRM } from '@/contexts/CRMContext';
-import { StatusCRM, AtendimentoCRM } from '@/types/crm';
+import { useCRM, StatusCRM, AtendimentoCRM } from './CRMContext';
 import {
   Search,
   Filter,

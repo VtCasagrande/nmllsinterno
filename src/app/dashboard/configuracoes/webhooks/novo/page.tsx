@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWebhooks, WebhookEventType, WebhookStatus } from '../mock/WebhooksContext';
+import { useWebhooks, WebhookEventType, WebhookStatus } from '../WebhooksContext';
 import Link from 'next/link';
 import { ArrowLeft, Save, AlertCircle } from 'lucide-react';
 
 export default function NovoWebhookPage() {
   const router = useRouter();
-  const { createWebhook } = useWebhooks();
+  const { criarWebhook, loading, error: apiError } = useWebhooks();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
@@ -54,7 +54,7 @@ export default function NovoWebhookPage() {
       }
 
       // Criar o webhook com os dados do formulário
-      await createWebhook(formData);
+      await criarWebhook(formData);
 
       router.push('/dashboard/configuracoes/webhooks');
     } catch (err) {

@@ -2,89 +2,113 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useWebhooks, WebhookEventType, WebhookStatus, Webhook } from '../../mock/WebhooksContext';
+import { useWebhooks, WebhookEventType, WebhookStatus, Webhook } from '../../WebhooksContext';
 import Link from 'next/link';
-import { ArrowLeft, Save, AlertCircle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, AlertCircle, Loader2, Check, Trash2 } from 'lucide-react';
 
 export default function EditarWebhookPage({ params }: { params: { id: string } }) {
-  const router = useRouter();
-  const { webhooks, getWebhookById, updateWebhook } = useWebhooks();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(true);
+  const { obterWebhookPorId, atualizarWebhook, loading, error: apiError } = useWebhooks();
+  const [webhook, setWebhook] = useState<Webhook | null>(null);
+  const [nome, setNome] = useState('');
+  const [url, setUrl] = useState('');
+  const [evento, setEvento] = useState<WebhookEventType | ''>('');
+  const [status, setStatus] = useState<WebhookStatus>(WebhookStatus.ATIVO);
+  const [headers, setHeaders] = useState<{key: string, value: string}[]>([{ key: '', value: '' }]);
+  const [salvando, setSalvando] = useState(false);
+  const [sucesso, setSucesso] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Webhook | null>(null);
-
+  const router = useRouter();
+  
   useEffect(() => {
     const fetchWebhook = async () => {
-      try {
-        const webhook = await getWebhookById(params.id);
-        if (!webhook) {
-          setError('Webhook não encontrado');
-          return;
+      if (params.id) {
+        try {
+          const webhookData = await obterWebhookPorId(params.id);
+          
+          if (webhookData) {
+            setWebhook(webhookData);
+            setNome(webhookData.nome);
+            setUrl(webhookData.url);
+            setEvento(webhookData.eventos[0] || '');
+            setStatus(webhookData.status);
+            
+            if (webhookData.headers) {
+              setHeaders(
+                Object.entries(webhookData.headers).map(([key, value]) => ({ key, value: value as string }))
+              );
+            }
+          } else {
+            setError('Webhook não encontrado');
+          }
+        } catch (err) {
+          console.error('Erro ao carregar webhook:', err);
+          setError('Erro ao carregar webhook');
         }
-        setFormData(webhook);
-      } catch (err) {
-        setError('Erro ao carregar webhook');
-        console.error(err);
-      } finally {
-        setIsFetching(false);
       }
     };
-
-    fetchWebhook();
-  }, [params.id, getWebhookById]);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    if (!formData) return;
     
-    const { name, value, type } = e.target;
-    let processedValue: any = value;
+    fetchWebhook();
+  }, [params.id]);
 
-    if (type === 'checkbox') {
-      const target = e.target as HTMLInputElement;
-      processedValue = target.checked ? WebhookStatus.ATIVO : WebhookStatus.INATIVO;
-    }
+  const handleAddHeader = () => {
+    setHeaders([...headers, { key: '', value: '' }]);
+  };
 
-    setFormData(prev => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        [name]: processedValue
-      };
-    });
+  const handleHeaderChange = (index: number, field: 'key' | 'value', value: string) => {
+    const newHeaders = [...headers];
+    newHeaders[index][field] = value;
+    setHeaders(newHeaders);
+  };
+
+  const handleRemoveHeader = (index: number) => {
+    setHeaders(headers.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData) return;
     
-    setIsLoading(true);
-    setError(null);
-
+    if (!nome || !url || !evento) {
+      setError('Preencha todos os campos obrigatórios');
+      return;
+    }
+    
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      setError('A URL deve começar com http:// ou https://');
+      return;
+    }
+    
+    const headersObj: Record<string, string> = {};
+    headers.forEach(h => {
+      if (h.key && h.value) {
+        headersObj[h.key] = h.value;
+      }
+    });
+    
     try {
-      // Validação básica
-      if (!formData.nome.trim()) {
-        throw new Error('O nome é obrigatório');
-      }
+      setSalvando(true);
+      setError(null);
       
-      if (!formData.url.trim()) {
-        throw new Error('A URL é obrigatória');
-      }
+      await atualizarWebhook(params.id, {
+        nome,
+        url,
+        eventos: [evento as WebhookEventType],
+        headers: Object.keys(headersObj).length > 0 ? headersObj : undefined,
+        status
+      });
       
-      if (!formData.url.startsWith('http://') && !formData.url.startsWith('https://')) {
-        throw new Error('A URL deve começar com http:// ou https://');
-      }
-
-      await updateWebhook(params.id, formData);
-      router.push('/dashboard/configuracoes/webhooks');
+      setSucesso(true);
+      setTimeout(() => {
+        router.push('/dashboard/configuracoes/webhooks');
+      }, 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ocorreu um erro ao atualizar o webhook');
+      console.error('Erro ao salvar webhook:', err);
+      setError('Ocorreu um erro ao salvar as alterações');
     } finally {
-      setIsLoading(false);
+      setSalvando(false);
     }
   };
 
-  if (isFetching) {
+  if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <Loader2 size={32} className="animate-spin text-blue-600 mb-4" />
@@ -93,7 +117,7 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
     );
   }
 
-  if (!formData) {
+  if (!webhook) {
     return (
       <div className="bg-red-50 border-l-4 border-red-400 p-4 rounded">
         <div className="flex">
@@ -127,7 +151,7 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
         
         <div className="text-sm text-gray-500">
           <span className="mr-2">ID:</span>
-          <code className="bg-gray-100 px-2 py-1 rounded">{formData.id}</code>
+          <code className="bg-gray-100 px-2 py-1 rounded">{webhook.id}</code>
         </div>
       </div>
 
@@ -137,6 +161,18 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
             <AlertCircle size={20} className="text-red-500 mt-0.5 mr-3" />
             <div>
               <p className="text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {sucesso && (
+        <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded">
+          <div className="flex">
+            <Check size={20} className="text-green-500 mt-0.5 mr-3" />
+            <div>
+              <p className="text-green-700">Webhook atualizado com sucesso!</p>
+              <p className="text-sm text-green-600">Redirecionando para a lista de webhooks...</p>
             </div>
           </div>
         </div>
@@ -152,8 +188,8 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
               type="text"
               id="nome"
               name="nome"
-              value={formData.nome}
-              onChange={handleChange}
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               placeholder="Ex: Notificação de entrega em rota"
               required
@@ -171,32 +207,14 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
               type="url"
               id="url"
               name="url"
-              value={formData.url}
-              onChange={handleChange}
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               placeholder="https://sua-api.exemplo.com/webhook"
               required
             />
             <p className="mt-1 text-sm text-gray-500">
-              O endpoint que receberá as requisições POST com os dados do evento
-            </p>
-          </div>
-
-          <div>
-            <label htmlFor="chaveSecreta" className="block text-sm font-medium text-gray-700">
-              Chave secreta (opcional)
-            </label>
-            <input
-              type="text"
-              id="chaveSecreta"
-              name="chaveSecreta"
-              value={formData.chaveSecreta || ''}
-              onChange={handleChange}
-              className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="sua-chave-secreta"
-            />
-            <p className="mt-1 text-sm text-gray-500">
-              Uma chave secreta para validar a autenticidade das requisições. Será enviada no cabeçalho X-Webhook-Signature
+              Endpoint que receberá as requisições do webhook
             </p>
           </div>
 
@@ -207,45 +225,67 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
             <select
               id="evento"
               name="evento"
-              value={formData.evento}
-              onChange={handleChange}
+              value={evento}
+              onChange={(e) => setEvento(e.target.value as WebhookEventType)}
               className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               required
             >
-              <optgroup label="Eventos de Entregas">
-                <option value={WebhookEventType.ENTREGA_EM_ROTA}>Entregas - Entrega em Rota</option>
-                <option value={WebhookEventType.ENTREGA_ENTREGUE}>Entregas - Entrega Concluída</option>
-                <option value={WebhookEventType.ENTREGA_CANCELADA}>Entregas - Entrega Cancelada</option>
-                <option value={WebhookEventType.ENTREGA_PROBLEMA}>Entregas - Problema na Entrega</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Devoluções">
-                <option value={WebhookEventType.DEVOLUCAO_INICIADA}>Devoluções - Devolução Iniciada</option>
-                <option value={WebhookEventType.DEVOLUCAO_APROVADA}>Devoluções - Devolução Aprovada</option>
-                <option value={WebhookEventType.DEVOLUCAO_REJEITADA}>Devoluções - Devolução Rejeitada</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Sugestões">
-                <option value={WebhookEventType.SUGESTAO_CRIADA}>Sugestões - Sugestão Criada</option>
-                <option value={WebhookEventType.SUGESTAO_PEDIDO_REALIZADO}>Sugestões - Pedido Realizado</option>
-                <option value={WebhookEventType.SUGESTAO_PRODUTO_CHEGOU}>Sugestões - Produto Chegou</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Trocas">
-                <option value={WebhookEventType.TROCA_CRIADA}>Trocas - Troca Criada</option>
-                <option value={WebhookEventType.TROCA_ATUALIZADA}>Trocas - Troca Atualizada</option>
-                <option value={WebhookEventType.TROCA_FINALIZADA}>Trocas - Troca Finalizada</option>
-              </optgroup>
-              
-              <optgroup label="Eventos de Reembolsos">
-                <option value={WebhookEventType.REEMBOLSO_CRIADO}>Reembolsos - Reembolso Criado</option>
-                <option value={WebhookEventType.REEMBOLSO_ATUALIZADO}>Reembolsos - Reembolso Atualizado</option>
-                <option value={WebhookEventType.REEMBOLSO_STATUS_ATUALIZADO}>Reembolsos - Status Atualizado</option>
-                <option value={WebhookEventType.REEMBOLSO_EXCLUIDO}>Reembolsos - Reembolso Excluído</option>
-              </optgroup>
+              <option value="">Selecione um evento</option>
+              {Object.values(WebhookEventType).map(eventType => (
+                <option key={eventType} value={eventType}>
+                  {eventType.replace(/_/g, ' ')}
+                </option>
+              ))}
             </select>
             <p className="mt-1 text-sm text-gray-500">
-              O evento que irá disparar este webhook
+              Tipo de evento que irá disparar este webhook
+            </p>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-gray-700">
+                Headers (opcional)
+              </label>
+              <button
+                type="button"
+                onClick={handleAddHeader}
+                className="px-3 py-1 text-xs font-medium text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded"
+              >
+                + Adicionar header
+              </button>
+            </div>
+            <div className="mt-2 space-y-3">
+              {headers.map((header, index) => (
+                <div key={index} className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={header.key}
+                    onChange={(e) => handleHeaderChange(index, 'key', e.target.value)}
+                    placeholder="Nome do header"
+                    className="block w-1/2 border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={header.value}
+                    onChange={(e) => handleHeaderChange(index, 'value', e.target.value)}
+                    placeholder="Valor"
+                    className="block w-1/2 border border-gray-300 rounded-md shadow-sm py-2 px-3 text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {index > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveHeader(index)}
+                      className="px-2 py-2 text-red-500 hover:text-red-700"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-1 text-sm text-gray-500">
+              Headers HTTP adicionais para enviar com cada requisição
             </p>
           </div>
 
@@ -254,64 +294,66 @@ export default function EditarWebhookPage({ params }: { params: { id: string } }
               type="checkbox"
               id="status"
               name="status"
-              checked={formData.status === WebhookStatus.ATIVO}
-              onChange={handleChange}
+              checked={status === WebhookStatus.ATIVO}
+              onChange={(e) => setStatus(e.target.checked ? WebhookStatus.ATIVO : WebhookStatus.INATIVO)}
               className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
             />
-            <label htmlFor="status" className="ml-2 block text-sm text-gray-900">
+            <label htmlFor="status" className="ml-2 block text-sm text-gray-700">
               Webhook ativo
             </label>
           </div>
 
-          {formData.ultimoDisparo && (
+          {webhook.ultimaExecucao && (
             <div className="pt-4 pb-2 border-t border-gray-200">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Informações do último disparo</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Informações da última execução</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div>
                   <span className="block text-gray-500">Data/Hora:</span>
-                  <span>{new Date(formData.ultimoDisparo).toLocaleString('pt-BR')}</span>
+                  <span>{new Date(webhook.ultimaExecucao).toLocaleString('pt-BR')}</span>
                 </div>
-                {formData.ultimoStatusCode && (
+                {webhook.ultimoStatus && (
                   <div>
                     <span className="block text-gray-500">Status da resposta:</span>
                     <span className={`${
-                      formData.ultimoStatusCode >= 200 && formData.ultimoStatusCode < 300
+                      webhook.ultimoStatus >= 200 && webhook.ultimoStatus < 300
                         ? 'text-green-600'
                         : 'text-red-600'
                     } font-medium`}>
-                      {formData.ultimoStatusCode}
+                      {webhook.ultimoStatus}
                     </span>
                   </div>
                 )}
               </div>
             </div>
           )}
+        </div>
 
-          <div className="pt-4 border-t border-gray-200 flex justify-end">
-            <Link
-              href="/dashboard/configuracoes/webhooks"
-              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-3"
-            >
-              Cancelar
-            </Link>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></span>
-                  Salvando...
-                </>
-              ) : (
-                <>
-                  <Save size={16} className="mr-2" />
-                  Salvar alterações
-                </>
-              )}
-            </button>
-          </div>
+        <div className="mt-6 flex items-center justify-end">
+          <Link
+            href="/dashboard/configuracoes/webhooks"
+            className="px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 mr-3"
+          >
+            Cancelar
+          </Link>
+          <button
+            type="submit"
+            disabled={salvando}
+            className={`px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 flex items-center ${
+              salvando ? 'opacity-70 cursor-not-allowed' : ''
+            }`}
+          >
+            {salvando ? (
+              <>
+                <Loader2 size={16} className="animate-spin mr-2" />
+                Salvando...
+              </>
+            ) : (
+              <>
+                <Save size={16} className="mr-2" />
+                Salvar alterações
+              </>
+            )}
+          </button>
         </div>
       </form>
     </div>

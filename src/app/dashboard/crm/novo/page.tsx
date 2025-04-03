@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRM } from '@/contexts/CRMContext';
-import { StatusCRM } from '@/types/crm';
+import { useCRM, StatusCRM } from '../CRMContext';
 import { ArrowLeft, Save } from 'lucide-react';
 import Link from 'next/link';
 import { format } from 'date-fns';

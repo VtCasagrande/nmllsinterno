@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Layers, Trash2, Plus, Link as LinkIcon, Check, Bug, AlertCircle } from 'lucide-react';
-import { useWebhooks, WebhookEventType } from '../mock/WebhooksContext';
+import { useWebhooks, WebhookEventType, WebhookStatus } from './WebhooksContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -35,7 +35,7 @@ const tiposWebhook = {
 };
 
 export default function WebhooksPage() {
-  const { webhooks, loading, error, deleteWebhook } = useWebhooks();
+  const { webhooks, loading, error, excluirWebhook } = useWebhooks();
   const router = useRouter();
   const [success, setSuccess] = useState(false);
 
@@ -61,7 +61,7 @@ export default function WebhooksPage() {
   // Deletar webhook
   const handleDeleteWebhook = async (id: string) => {
     try {
-      await deleteWebhook(id);
+      await excluirWebhook(id);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
@@ -141,7 +141,7 @@ export default function WebhooksPage() {
             {webhooks.map(webhook => {
               if (!webhook) return null;
               
-              const tipoInfo = getTipoInfo(webhook.evento);
+              const tipoInfo = getTipoInfo(webhook.eventos[0]);
               const TipoIcone = tipoInfo.icone;
               
               return (
@@ -163,9 +163,9 @@ export default function WebhooksPage() {
                   
                   <div className="flex items-center">
                     <div className={`px-2 py-1 text-xs rounded-full mr-4 ${
-                      webhook.status === 'ativo' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                      webhook.status === WebhookStatus.ATIVO ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
                     }`}>
-                      {webhook.status === 'ativo' ? 'Ativo' : 'Inativo'}
+                      {webhook.status === WebhookStatus.ATIVO ? 'Ativo' : 'Inativo'}
                     </div>
                     
                     <Link
