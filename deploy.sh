@@ -5,13 +5,18 @@ cd /code
 
 # Setar variáveis de ambiente ANTES da build
 export NEXT_PUBLIC_SUPABASE_URL=https://rnqdwjslfoxtdchxzgfr.supabase.co
-export NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+export NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI
 export NEXT_PUBLIC_STORAGE_DEVOLUCOES_BUCKET=devolucoes
 export NEXT_PUBLIC_STORAGE_PROFILE_BUCKET=profile-images
 export NEXT_PUBLIC_STORAGE_BUCKET=nmalls-storage
 export NEXT_PUBLIC_APP_URL=https://nmallsinterno-nmallsinterno.op6qrj.easypanel.host/
 export NEXT_PUBLIC_API_URL=https://nmallsinterno-nmallsinterno.op6qrj.easypanel.host/api
 export NODE_ENV=production
+
+# Verificar a configuração do Supabase
+echo "SUPABASE URL: $NEXT_PUBLIC_SUPABASE_URL"
+echo "SUPABASE KEY (primeiros 10 caracteres): ${NEXT_PUBLIC_SUPABASE_ANON_KEY:0:10}..."
+echo "NODE_ENV: $NODE_ENV"
 
 # Obter as atualizações mais recentes
 git pull origin main
