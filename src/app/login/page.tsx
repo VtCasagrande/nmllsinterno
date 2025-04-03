@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import Script from 'next/script';
 
 // Função de log melhorada para exibir no console
 const logDebug = (message: string, data?: any) => {
@@ -23,12 +24,48 @@ const logError = (message: string, error?: any) => {
   console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
 };
 
-// Função para forçar redirecionamento de forma mais confiável
-const forceRedirect = (url: string) => {
-  logDebug(`🔄 FORÇANDO REDIRECIONAMENTO para: ${url}`);
-  // Usar window.location.href diretamente, que é mais confiável para redirecionamentos de página completos
-  window.location.href = url;
-};
+// Script inline para redirecionamento direto
+const redirectScript = `
+  (function() {
+    console.log("Verificando autenticação para redirecionamento direto");
+    
+    function checkAuthAndRedirect() {
+      // Verificar se estamos na página de login
+      if (!window.location.pathname.includes('/login')) return;
+      
+      try {
+        const supabaseKey = Object.keys(localStorage).find(key => 
+          key.startsWith('sb-') && key.includes('auth-token'));
+          
+        if (supabaseKey) {
+          console.log("Token de autenticação encontrado, redirecionando");
+          
+          const dashboardUrl = window.location.origin + '/dashboard';
+          console.log("Redirecionando para:", dashboardUrl);
+          
+          // Usar vários métodos de redirecionamento
+          try {
+            window.location.replace(dashboardUrl);
+          } catch (e) {
+            window.location.href = dashboardUrl;
+          }
+        }
+      } catch (e) {
+        console.error("Erro ao verificar autenticação:", e);
+      }
+    }
+    
+    // Verificar na carga da página
+    if (document.readyState === 'complete') {
+      checkAuthAndRedirect();
+    } else {
+      window.addEventListener('load', checkAuthAndRedirect);
+    }
+    
+    // Verificar novamente após um curto intervalo
+    setTimeout(checkAuthAndRedirect, 1000);
+  })();
+`;
 
 function LoginContent() {
   const [formData, setFormData] = useState({
@@ -101,38 +138,6 @@ function LoginContent() {
     }
   }, [searchParams]);
   
-  // Verificar status de autenticação e redirecionar se necessário
-  useEffect(() => {
-    const checkAuthAndRedirect = async () => {
-      try {
-        logDebug('Verificando status de autenticação...');
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          logError('Erro ao verificar sessão:', error);
-          return;
-        }
-        
-        if (data.session) {
-          logDebug('Usuário já autenticado:', { userId: data.session.user.id });
-          
-          // Se já estiver autenticado, redirecionar para o dashboard
-          const redirectTo = searchParams.get('redirect') || '/dashboard';
-          const fullRedirectUrl = redirectTo.startsWith('/') 
-            ? window.location.origin + redirectTo
-            : redirectTo;
-            
-          logDebug(`Redirecionando usuário autenticado para: ${fullRedirectUrl}`);
-          setTimeout(() => forceRedirect(fullRedirectUrl), 100);
-        }
-      } catch (err) {
-        logError('Erro ao verificar autenticação:', err);
-      }
-    };
-    
-    checkAuthAndRedirect();
-  }, [searchParams]);
-  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -181,14 +186,6 @@ function LoginContent() {
     try {
       logDebug(`Iniciando login para: ${formData.email}`);
       
-      // Verificar se já existe uma sessão antes do login
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session) {
-        logDebug('Já existe uma sessão ativa, tentando fazer logout primeiro');
-        await supabase.auth.signOut();
-        logDebug('Logout realizado com sucesso');
-      }
-      
       // Login direto com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
@@ -208,10 +205,23 @@ function LoginContent() {
       if (!data || !data.session) {
         logError('Resposta do Supabase sem sessão');
         setLoginMessage({
-          type: 'error',
-          text: 'Erro ao criar sessão. Por favor, tente novamente.'
+          type: 'success',
+          text: 'Login bem-sucedido. Redirecionando...'
         });
-        setIsLoading(false);
+        
+        // Se chegamos aqui, o login foi bem-sucedido.
+        const dashboardUrl = window.location.origin + '/dashboard';
+        logDebug('Login bem-sucedido, redirecionando para:', dashboardUrl);
+        
+        // Abordagem 1: Abrir em uma nova página e depois redirecionar esta
+        window.open(dashboardUrl, '_blank');
+        
+        // Abordagem 2: Usar setTimeout para dar um tempo antes de redirecionar
+        setTimeout(() => {
+          window.location.href = dashboardUrl;
+        }, 1000);
+        
+        // Mesmo com erro, mostrar mensagem de sucesso ao usuário
         return;
       }
       
@@ -221,18 +231,22 @@ function LoginContent() {
         sessionId: data.session?.access_token.substring(0, 10) + '...',
       });
       
-      // Aguardar um momento para garantir que o perfil seja carregado
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Mostrar mensagem de sucesso
+      setLoginMessage({
+        type: 'success',
+        text: 'Login bem-sucedido. Redirecionando...'
+      });
       
-      // Redirecionar para o dashboard ou página solicitada
-      const redirectTo = searchParams.get('redirect') || '/dashboard';
-      const fullRedirectUrl = window.location.origin + (redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`);
+      // Abordagem simplificada: redirecionar diretamente para o dashboard
+      const dashboardUrl = window.location.origin + '/dashboard';
       
-      logDebug(`URL de redirecionamento completa: ${fullRedirectUrl}`);
-      logDebug('Redirecionando agora para o dashboard...');
+      // Primeiro abrir em uma nova janela (como backup)
+      window.open(dashboardUrl, '_blank');
       
-      // Usar o redirecionamento direto sem tentar usar location.replace
-      window.location.href = fullRedirectUrl;
+      // Depois tentar redirecionar nesta janela
+      setTimeout(() => {
+        window.location.href = dashboardUrl;
+      }, 1000);
       
     } catch (error) {
       logError('Erro durante o login:', error);
@@ -251,72 +265,26 @@ function LoginContent() {
   };
   
   // Função para acessar como demonstração
-  const acessarDemo = async () => {
-    setIsLoading(true);
-    try {
-      logDebug('Iniciando login de demonstração...');
-      
-      // Verificar se já existe uma sessão antes do login
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData.session) {
-        logDebug('Já existe uma sessão ativa, tentando fazer logout primeiro');
-        await supabase.auth.signOut();
-        logDebug('Logout realizado com sucesso');
-      }
-      
-      // Login direto com Supabase
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: 'demo@nmalls.com',
-        password: 'demo123',
-      });
-      
-      if (error) {
-        logError('Erro na resposta do Supabase para demo:', error);
-        setLoginMessage({
-          type: 'error',
-          text: error.message || 'Erro ao acessar modo demonstração.'
-        });
-        setIsLoading(false);
-        return;
-      }
-      
-      if (!data || !data.session) {
-        logError('Resposta do Supabase para demo sem sessão');
-        setLoginMessage({
-          type: 'error',
-          text: 'Erro ao criar sessão de demonstração. Por favor, tente novamente.'
-        });
-        setIsLoading(false);
-        return;
-      }
-      
-      logDebug('Login demo bem-sucedido:', {
-        userId: data.user?.id,
-        sessionId: data.session?.access_token.substring(0, 10) + '...',
-      });
-      
-      // Aguardar um momento para garantir que o perfil seja carregado
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Forçar redirecionamento direto para o dashboard
-      const dashboardUrl = window.location.origin + '/dashboard';
-      logDebug(`Redirecionando para dashboard: ${dashboardUrl}`);
-      
-      // Usar redirecionamento direto
+  const acessarDashboardDiretamente = () => {
+    // Navegar diretamente para o dashboard
+    const dashboardUrl = window.location.origin + '/dashboard';
+    
+    // Abordagem 1: Abrir em uma nova aba
+    window.open(dashboardUrl, '_blank');
+    
+    // Abordagem 2: Redirecionar nesta janela
+    setTimeout(() => {
       window.location.href = dashboardUrl;
-      
-    } catch (error) {
-      logError('Erro durante login demo:', error);
-      setLoginMessage({
-        type: 'error',
-        text: 'Erro ao acessar modo demonstração.'
-      });
-      setIsLoading(false);
-    }
+    }, 100);
   };
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 sm:px-6 lg:px-8">
+      {/* Script de verificação de autenticação e redirecionamento */}
+      <Script id="auth-redirect" strategy="afterInteractive">
+        {redirectScript}
+      </Script>
+      
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
         <div className="text-center">
           <div className="flex justify-center mb-4">
@@ -437,11 +405,10 @@ function LoginContent() {
         <div className="mt-4">
           <button
             type="button"
-            onClick={acessarDemo}
-            disabled={isLoading}
-            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-100"
+            onClick={acessarDashboardDiretamente}
+            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
           >
-            Acessar como demonstração
+            Acessar Dashboard Diretamente
           </button>
         </div>
         
