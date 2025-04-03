@@ -318,7 +318,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
       
       // Atualizar UI
       setStatusAtual('em_analise');
-      setResponsavelAnalise(profile.name);
+      setResponsavelAnalise(profile.name || profile.email || 'Usuário');
       
       toast({
         title: "Sucesso",
