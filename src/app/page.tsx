@@ -22,7 +22,10 @@ export default function HomePage() {
         
         if (error) {
           logDebug('Erro ao verificar sessão:', error);
-          window.location.href = '/login';
+          // Redirecionar para login após um breve atraso
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 100);
           return;
         }
         
@@ -30,14 +33,23 @@ export default function HomePage() {
           // Usuário já está logado, redirecionar para dashboard
           logDebug('Sessão ativa encontrada, redirecionando para dashboard');
           
-          // Use setTimeout para dar tempo aos contextos de serem inicializados
+          // Use um timeout para garantir que o redirecionamento ocorra 
+          // mesmo se outros processos estiverem em andamento
           setTimeout(() => {
-            window.location.href = '/dashboard';
-          }, 100);
+            // Usar o redirecionamento direto sem intermediários
+            document.location.href = '/dashboard';
+            
+            // Como backup, tentar novamente após um breve atraso
+            setTimeout(() => {
+              window.location.replace('/dashboard');
+            }, 200);
+          }, 300);
         } else {
           // Redirecionar para login
           logDebug('Usuário não autenticado, redirecionando para login');
-          window.location.href = '/login';
+          setTimeout(() => {
+            window.location.href = '/login';
+          }, 100);
         }
       } catch (err) {
         console.error('Erro ao verificar autenticação:', err);

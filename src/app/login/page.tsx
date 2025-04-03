@@ -23,16 +23,11 @@ const logError = (message: string, error?: any) => {
   console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
 };
 
-// Função para forçar o redirecionamento
+// Função para forçar redirecionamento de forma mais confiável
 const forceRedirect = (url: string) => {
   logDebug(`🔄 FORÇANDO REDIRECIONAMENTO para: ${url}`);
-  // Usar um método mais confiável para redirecionar
-  try {
-    window.location.replace(url);
-  } catch (err) {
-    logError('Erro ao usar location.replace, tentando location.href:', err);
-    window.location.href = url;
-  }
+  // Usar window.location.href diretamente, que é mais confiável para redirecionamentos de página completos
+  window.location.href = url;
 };
 
 function LoginContent() {
@@ -227,19 +222,17 @@ function LoginContent() {
       });
       
       // Aguardar um momento para garantir que o perfil seja carregado
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';
-      logDebug(`Redirecionando para: ${redirectTo}`);
-      
-      // Forçar redirecionamento imediato para o dashboard
-      const fullRedirectUrl = redirectTo.startsWith('/') 
-        ? window.location.origin + redirectTo
-        : redirectTo;
+      const fullRedirectUrl = window.location.origin + (redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`);
       
       logDebug(`URL de redirecionamento completa: ${fullRedirectUrl}`);
-      forceRedirect(fullRedirectUrl);
+      logDebug('Redirecionando agora para o dashboard...');
+      
+      // Usar o redirecionamento direto sem tentar usar location.replace
+      window.location.href = fullRedirectUrl;
       
     } catch (error) {
       logError('Erro durante o login:', error);
@@ -302,10 +295,15 @@ function LoginContent() {
         sessionId: data.session?.access_token.substring(0, 10) + '...',
       });
       
-      // Forçar redirecionamento imediato para o dashboard
+      // Aguardar um momento para garantir que o perfil seja carregado
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Forçar redirecionamento direto para o dashboard
       const dashboardUrl = window.location.origin + '/dashboard';
       logDebug(`Redirecionando para dashboard: ${dashboardUrl}`);
-      forceRedirect(dashboardUrl);
+      
+      // Usar redirecionamento direto
+      window.location.href = dashboardUrl;
       
     } catch (error) {
       logError('Erro durante login demo:', error);

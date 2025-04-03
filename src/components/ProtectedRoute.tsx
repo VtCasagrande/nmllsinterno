@@ -33,39 +33,30 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
   const { session, user, profile, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // Aguardar o contexto de autenticação terminar de carregar
-    if (authLoading) {
-      logDebug('Contexto de autenticação ainda está carregando');
-      return;
-    }
-
     const checkAuth = async () => {
       try {
-        // Se já temos sessão, o usuário está autenticado
-        if (session) {
-          logDebug('Usuário autenticado:', { userId: user?.id });
+        // Se estamos carregando o contexto de autenticação, aguardar
+        if (authLoading) {
+          logDebug('Contexto de autenticação carregando');
+          return;
+        }
 
-          // Se há papéis permitidos específicos, verificar se o usuário tem acesso
+        // Se já temos uma sessão no contexto, o usuário está autenticado
+        if (session) {
+          logDebug('Usuário autenticado via contexto:', { userId: user?.id });
+          
+          // Se temos papéis restritos, verificar se o usuário tem acesso
           if (allowedRoles.length > 0) {
             const userRole = profile?.role || 'user';
-            const hasRole = allowedRoles.includes(userRole);
-
-            if (!hasRole) {
-              logDebug('Usuário não tem papel requerido:', { 
-                userRole, 
-                requiredRoles: allowedRoles 
-              });
-              
-              // Em produção, mostrar alerta e redirecionar
+            if (!allowedRoles.includes(userRole)) {
+              logDebug('Usuário não tem papel permitido:', { userRole, allowedRoles });
               alert('Você não tem permissão para acessar esta página.');
               router.push('/dashboard');
-              setLoading(false);
               return;
             }
-            
             logDebug('Usuário tem papel permitido:', { userRole });
           }
-
+          
           // Usuário autenticado e com permissão
           setAuthorized(true);
           setLoading(false);
@@ -73,34 +64,36 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
         }
         
         // Se não temos sessão no contexto, verificar diretamente no Supabase
-        const { data: sessionData } = await supabase.auth.getSession();
+        const { data } = await supabase.auth.getSession();
         
-        if (sessionData.session) {
-          logDebug('Sessão encontrada diretamente no Supabase');
-          // Há uma sessão, mas não está no contexto - provavelmente o contexto ainda não atualizou
-          // Vamos permitir o acesso e deixar o contexto atualizar naturalmente
+        if (data.session) {
+          logDebug('Usuário autenticado via Supabase:', { userId: data.session.user.id });
+          // Tem sessão no Supabase, mas não no contexto - permitir acesso
+          // O contexto será atualizado naturalmente
           setAuthorized(true);
           setLoading(false);
           return;
         }
         
-        // Nenhuma sessão encontrada, redirecionar para login
+        // Não há sessão, redirecionar para login
         logDebug('Usuário não autenticado, redirecionando para login');
         const currentPath = window.location.pathname;
         router.push(`/login?redirect=${encodeURIComponent(currentPath)}`);
         setLoading(false);
       } catch (error) {
         logError('Erro ao verificar autenticação:', error);
-        // Em caso de erro, redirecionar para login
-        router.push('/login');
+        // Em caso de erro, não redirecionar automaticamente
+        // Isso evita loops infinitos em caso de problemas com a autenticação
         setLoading(false);
+        setAuthorized(false);
       }
     };
 
     checkAuth();
   }, [router, allowedRoles, session, user, profile, authLoading]);
 
-  if (loading || authLoading) {
+  // Mostrar loader enquanto verifica autenticação
+  if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>

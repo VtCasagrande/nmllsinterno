@@ -159,33 +159,43 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   // Verificar autenticação
   useEffect(() => {
     const checkAuth = async () => {
-      if (!loading) { // Espera o contexto de autenticação terminar de carregar
-        // Se já temos perfil ou sessão, permitir acesso
-        if (profile || session) {
+      // Se o contexto de autenticação ainda estiver carregando, aguardamos
+      if (loading) {
+        console.log('Contexto de autenticação carregando, aguardando...');
+        return;
+      }
+      
+      // Se já temos perfil, usuário ou sessão, permitir acesso
+      if (profile || user || session) {
+        console.log('Usuário autenticado, permitindo acesso ao dashboard');
+        return;
+      }
+      
+      // Verificar diretamente no Supabase se há uma sessão válida
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          console.log('Sessão encontrada diretamente no Supabase, permitindo acesso');
           return;
         }
         
-        // Verificar se há uma sessão válida no Supabase
-        const { data } = await supabase.auth.getSession();
-        if (!data.session) {
-          console.log('Sem sessão válida, redirecionando para login');
-          // Redirecionar para a página de login com o caminho atual como redirecionamento
-          const currentPath = window.location.pathname;
-          const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
-          
-          // Usar um método mais confiável para redirecionar
-          try {
-            window.location.replace(loginUrl);
-          } catch (err) {
-            console.error('Erro ao redirecionar com replace, usando href:', err);
-            window.location.href = loginUrl;
-          }
-        }
+        // Nenhuma sessão encontrada, redirecionar para login
+        console.log('Sem sessão válida, redirecionando para login');
+        // Redirecionar para a página de login com o caminho atual como redirecionamento
+        const currentPath = window.location.pathname;
+        const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
+        
+        // Fazer o redirecionamento de forma direta para evitar problemas
+        window.location.href = loginUrl;
+      } catch (err) {
+        console.error('Erro ao verificar autenticação:', err);
+        // Em caso de erro, é mais seguro redirecionar para login
+        window.location.href = '/login';
       }
     };
     
     checkAuth();
-  }, [loading, profile, session]);
+  }, [loading, profile, user, session]);
   
   // Se estiver carregando, mostrar um loader
   if (loading) {

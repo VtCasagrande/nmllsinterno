@@ -293,6 +293,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Se login bem-sucedido, buscar perfil
       if (data.user) {
         try {
+          // Definir que estamos carregando o perfil
+          setLoading(true);
+          
           const fetchedProfile = await fetchProfile(data.user.id);
           
           // Se não encontrou perfil, criar um básico
@@ -321,6 +324,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             
             // Atualizar o estado com o perfil básico mesmo se falhar na inserção
             setProfile(basicProfile);
+            setProfileLoaded(true);
           }
         } catch (profileError) {
           logError('Erro ao buscar/criar perfil após login:', profileError);
@@ -330,12 +334,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
             email: data.user.email,
             role: 'user'
           });
+          setProfileLoaded(true);
+        } finally {
+          // Garantir que o loading seja sempre desativado
+          setLoading(false);
         }
       }
 
       return { success: true };
     } catch (error) {
       logError('Erro durante o processo de login:', error);
+      setLoading(false);
       if (error instanceof Error) {
         return { success: false, error: error.message };
       }
