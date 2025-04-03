@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
 export async function middleware(request: NextRequest) {
   // Rotas que não precisam de autenticação
@@ -28,82 +28,78 @@ export async function middleware(request: NextRequest) {
   }
 
   // Verificar se há um loop de redirecionamento usando um parâmetro na URL
-  const loopDetection = request.nextUrl.searchParams.get('_auth_loop');
-  if (loopDetection) {
-    console.warn('Loop de redirecionamento detectado. Permitindo acesso para evitar bloqueio');
+  const authLoop = request.nextUrl.searchParams.get('_auth_loop');
+  const authChecked = request.nextUrl.searchParams.get('_auth_checked');
+  const authBypass = request.nextUrl.searchParams.get('_auth_bypass');
+  
+  if (authLoop || authChecked || authBypass) {
+    console.warn('Detector de loop de redirecionamento ativado. Permitindo acesso para evitar bloqueio.');
     return NextResponse.next();
   }
 
   try {
-    // Configuração cliente Supabase para middleware
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
+    // Criar resposta com os mesmos cabeçalhos e cookies
+    const res = NextResponse.next();
     
-    // Criar cliente Supabase com cookies
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        detectSessionInUrl: false,
-        autoRefreshToken: true,
-        storage: {
-          getItem: (key) => {
-            const cookies = request.cookies.getAll();
-            const cookie = cookies.find(c => c.name === key);
-            return cookie?.value ?? null;
+    // Configurar supabase client com cookies da requisição/resposta
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
+    
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        cookies: {
+          get: (name: string) => request.cookies.get(name)?.value,
+          set: (name: string, value: string, options: CookieOptions) => {
+            res.cookies.set({
+              name,
+              value,
+              ...options
+            });
           },
-          setItem: () => {},
-          removeItem: () => {}
+          remove: (name: string, options: CookieOptions) => {
+            res.cookies.set({
+              name,
+              value: '',
+              ...options
+            });
+          }
         }
       }
-    });
-
-    // Verificar sessão do usuário
-    const authCookie = request.cookies.get('sb-access-token')?.value || 
-                       request.cookies.get('sb-refresh-token')?.value ||
-                       request.cookies.get('supabase-auth-token')?.value;
-
-    // Se não houver cookie de autenticação, redirecionar para login
-    if (!authCookie) {
-      console.log('Nenhum cookie de autenticação encontrado, redirecionando para login');
-      const url = new URL('/login', request.url);
-      url.searchParams.set('redirect', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
-    }
-
-    // Tentar obter a sessão do Supabase
-    const { data, error } = await supabase.auth.getSession();
+    );
     
-    if (error) {
-      console.error('Erro ao verificar sessão no middleware:', error.message);
-      const url = new URL('/login', request.url);
-      url.searchParams.set('redirect', request.nextUrl.pathname);
-      url.searchParams.set('error', 'Erro na verificação de autenticação');
-      return NextResponse.redirect(url);
+    // Obter a sessão atual e atualizar cookies
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    // Se não houver sessão, redirecionar para a página de login
+    if (!session) {
+      console.log('Sessão não encontrada, redirecionando para login');
+      
+      // Criar URL de redirecionamento com parâmetro de destino
+      const redirectUrl = new URL('/login', request.url);
+      redirectUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
+      redirectUrl.searchParams.set('_auth_checked', '1'); // Prevenir loops
+      
+      return NextResponse.redirect(redirectUrl);
     }
-
-    // Verificar se a sessão é válida
-    if (!data.session) {
-      console.log('Sessão inválida ou expirada, redirecionando para login');
-      const url = new URL('/login', request.url);
-      url.searchParams.set('redirect', request.nextUrl.pathname);
-      return NextResponse.redirect(url);
-    }
-
-    // Se chegou aqui, está autenticado
-    console.log('Usuário autenticado, permitindo acesso:', data.session.user.id);
-    return NextResponse.next();
+    
+    // Se chegou aqui, o usuário está autenticado
+    console.log('Usuário autenticado:', session.user.id);
+    
+    // Retorna a resposta modificada que inclui os cookies de sessão atualizados
+    return res;
   } catch (error) {
     console.error('Erro na verificação de autenticação:', error);
     
-    // Tratamento de erro não bloqueante para evitar loops
-    const message = error instanceof Error ? error.message : 'Erro desconhecido';
-    console.log('Redirecionando para login devido a erro:', message);
+    // Em caso de erro, redirecionar para login com flag para evitar loops
+    const redirectUrl = new URL('/login', request.url);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     
-    const url = new URL('/login', request.url);
-    url.searchParams.set('error', encodeURIComponent(message));
-    // Adicionar flag de loop para evitar redirecionamentos infinitos
-    url.searchParams.set('_auth_loop', '1');
-    return NextResponse.redirect(url);
+    redirectUrl.searchParams.set('error', encodeURIComponent(errorMessage));
+    redirectUrl.searchParams.set('_auth_loop', '1'); // Flag para evitar loops
+    
+    return NextResponse.redirect(redirectUrl);
   }
 }
 
