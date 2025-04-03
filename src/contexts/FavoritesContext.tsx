@@ -52,25 +52,36 @@ const favoritesService = {
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Erro desconhecido');
           logError(`API respondeu com status ${response.status}: ${errorText}`);
+          // Falha na API, não interromper o fluxo, usar fallback
           throw new Error(`API respondeu com status ${response.status}`);
         }
         
-        const data = await response.json();
-        logDebug('Favoritos obtidos com sucesso da API:', data);
-        return data.favorites || [];
+        try {
+          const data = await response.json();
+          logDebug('Favoritos obtidos com sucesso da API:', data);
+          return data.favorites || [];
+        } catch (jsonError) {
+          // Erro ao processar o JSON (possível HTML no lugar de JSON)
+          logError('Erro ao processar resposta JSON da API:', jsonError);
+          throw new Error('Resposta da API não é um JSON válido');
+        }
       } catch (apiError) {
         logError('Erro ao buscar favoritos da API:', apiError);
         
         // Fallback para localStorage se a API falhar
         logDebug('Tentando fallback para localStorage');
-        const storedFavorites = localStorage.getItem(`favorites-${userId}`);
-        if (storedFavorites) {
-          const parsedFavorites = JSON.parse(storedFavorites);
-          logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
-          return parsedFavorites;
+        try {
+          const storedFavorites = localStorage.getItem(`favorites-${userId}`);
+          if (storedFavorites) {
+            const parsedFavorites = JSON.parse(storedFavorites);
+            logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
+            return parsedFavorites;
+          }
+        } catch (localStorageError) {
+          logError('Erro ao acessar localStorage:', localStorageError);
         }
         
-        logDebug('Nenhum favorito encontrado no localStorage, retornando array vazio');
+        logDebug('Nenhum favorito encontrado no fallback, retornando array vazio');
         return [];
       }
     } catch (error) {
@@ -154,31 +165,19 @@ export function FavoritesProvider({ children }: FavoritesProviderProps) {
         }
         
         // Agora tenta carregar da API para ter os dados mais atualizados
-        const userFavorites = await favoritesService.getFavorites(profile.id);
-        
-        logDebug(`${userFavorites.length} favoritos carregados com sucesso`);
-        setFavorites(userFavorites);
+        try {
+          const userFavorites = await favoritesService.getFavorites(profile.id);
+          logDebug(`${userFavorites.length} favoritos carregados com sucesso`);
+          setFavorites(userFavorites);
+        } catch (apiError) {
+          // Não fazer nada, já estamos usando os dados do localStorage
+          // ou array vazio como fallback
+          logError('Erro ao carregar favoritos da API, continuando com fallback:', apiError);
+        }
       } catch (error) {
         logError('Erro ao carregar favoritos do servidor:', error);
-        
-        // Em caso de erro, tenta carregar do localStorage se ainda não tiver feito
-        if (favorites.length === 0) {
-          try {
-            logDebug('Tentando recuperar favoritos do localStorage após erro');
-            const storedFavorites = localStorage.getItem(`favorites-${profile.id}`);
-            if (storedFavorites) {
-              const parsedFavorites = JSON.parse(storedFavorites);
-              logDebug('Favoritos recuperados do localStorage:', parsedFavorites);
-              setFavorites(parsedFavorites);
-            } else {
-              logDebug('Nenhum favorito encontrado no localStorage, usando array vazio');
-              setFavorites([]);
-            }
-          } catch (fallbackError) {
-            logError('Erro também no fallback:', fallbackError);
-            setFavorites([]);
-          }
-        }
+        // Em caso de erro crítico, garantir um array vazio para não impactar o login
+        setFavorites([]);
       } finally {
         setIsLoading(false);
         logDebug('Carregamento de favoritos finalizado');

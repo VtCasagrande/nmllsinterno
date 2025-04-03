@@ -25,6 +25,23 @@ const logError = (message: string, error?: any) => {
 // Em produção, isso seria substituído por um banco de dados real
 let userFavoritesDB: UserFavorites = {};
 
+// Garantir uma resposta de erro bem formatada
+function createErrorResponse(message: string, status: number = 500) {
+  try {
+    return NextResponse.json(
+      { error: message, success: false, favorites: [] },
+      { status, headers: { 'Content-Type': 'application/json' } }
+    );
+  } catch (error) {
+    logError('Erro ao criar resposta de erro:', error);
+    // Resposta de fallback em caso de problemas
+    return new NextResponse(
+      JSON.stringify({ error: message, success: false, favorites: [] }),
+      { status, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
+}
+
 // GET /api/users/[id]/favorites
 export async function GET(
   request: NextRequest,
@@ -37,24 +54,21 @@ export async function GET(
     // Validação básica
     if (!id) {
       logError('ID de usuário não fornecido');
-      return NextResponse.json(
-        { error: 'ID de usuário não fornecido' },
-        { status: 400 }
-      );
+      return createErrorResponse('ID de usuário não fornecido', 400);
     }
     
     // Recupera os favoritos do usuário do banco de dados simulado
     const userFavorites = userFavoritesDB[id] || [];
     logDebug(`Favoritos encontrados para o usuário ${id}:`, userFavorites);
     
-    // Retorna os favoritos do usuário
-    return NextResponse.json({ favorites: userFavorites });
+    // Retorna os favoritos do usuário com headers explícitos
+    return NextResponse.json(
+      { favorites: userFavorites, success: true },
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     logError('Erro ao buscar favoritos:', error);
-    return NextResponse.json(
-      { error: 'Erro ao buscar favoritos' },
-      { status: 500 }
-    );
+    return createErrorResponse('Erro ao buscar favoritos');
   }
 }
 
@@ -70,23 +84,23 @@ export async function PUT(
     // Validação básica
     if (!id) {
       logError('ID de usuário não fornecido');
-      return NextResponse.json(
-        { error: 'ID de usuário não fornecido' },
-        { status: 400 }
-      );
+      return createErrorResponse('ID de usuário não fornecido', 400);
     }
     
     // Obtém o corpo da requisição
-    const body = await request.json();
-    logDebug(`Corpo da requisição:`, body);
+    let body;
+    try {
+      body = await request.json();
+      logDebug(`Corpo da requisição:`, body);
+    } catch (parseError) {
+      logError('Erro ao analisar JSON da requisição:', parseError);
+      return createErrorResponse('Formato de dados inválido na requisição', 400);
+    }
     
     // Validação do corpo da requisição
     if (!body || !Array.isArray(body.favorites)) {
       logError('Formato de dados inválido na requisição:', body);
-      return NextResponse.json(
-        { error: 'Formato de dados inválido' },
-        { status: 400 }
-      );
+      return createErrorResponse('Formato de dados inválido', 400);
     }
     
     // Atualiza os favoritos do usuário no banco de dados simulado
@@ -96,16 +110,41 @@ export async function PUT(
     // Simula um pequeno atraso para reproduzir o comportamento de um banco de dados real
     await new Promise(resolve => setTimeout(resolve, 300));
     
-    // Retorna os favoritos atualizados
-    return NextResponse.json({ 
-      favorites: userFavoritesDB[id],
-      message: 'Favoritos atualizados com sucesso' 
-    });
+    // Retorna os favoritos atualizados com headers explícitos
+    return NextResponse.json(
+      { 
+        favorites: userFavoritesDB[id],
+        message: 'Favoritos atualizados com sucesso',
+        success: true 
+      },
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     logError('Erro ao atualizar favoritos:', error);
-    return NextResponse.json(
-      { error: 'Erro ao atualizar favoritos' },
-      { status: 500 }
-    );
+    return createErrorResponse('Erro ao atualizar favoritos');
+  }
+}
+
+// OPTIONS /api/users/[id]/favorites - Para suporte a CORS preflight
+export async function OPTIONS(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    logDebug(`Recebida solicitação OPTIONS para favoritos do usuário ID: ${params.id}`);
+    
+    // Retornar cabeçalhos CORS apropriados
+    return new NextResponse(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Content-Type': 'application/json'
+      }
+    });
+  } catch (error) {
+    logError('Erro ao processar OPTIONS:', error);
+    return createErrorResponse('Erro interno do servidor');
   }
 } 

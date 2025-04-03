@@ -181,6 +181,18 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         
         // Nenhuma sessão encontrada, redirecionar para login
         console.log('Sem sessão válida, redirecionando para login');
+        // Evitar loop de redirecionamento definindo uma flag
+        const redirecting = sessionStorage.getItem('redirecting');
+        if (redirecting) {
+          console.log('Redirecionamento já em andamento, evitando loop');
+          return;
+        }
+        
+        sessionStorage.setItem('redirecting', 'true');
+        setTimeout(() => {
+          sessionStorage.removeItem('redirecting');
+        }, 5000); // Limpar a flag após 5 segundos
+        
         // Redirecionar para a página de login com o caminho atual como redirecionamento
         const currentPath = window.location.pathname;
         const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
