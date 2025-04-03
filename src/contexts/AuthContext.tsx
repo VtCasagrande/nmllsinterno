@@ -1,217 +1,295 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { logAction } from '@/lib/supabase';
 
-interface AuthContextType {
-  profile: {
-    id: string;
-    name: string;
-    role: string;
-    email: string;
-  } | null;
-  loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
-  signOut: () => Promise<void>;
+// Função de log melhorada para exibir no console
+const logDebug = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  if (data) {
+    console.log(`[${timestamp}] 🔐 AUTH CONTEXT: ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] 🔐 AUTH CONTEXT: ${message}`);
+  }
+};
+
+// Função de log de erro melhorada
+const logError = (message: string, error?: any) => {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ AUTH CONTEXT ERROR: ${message}`, error);
+};
+
+// Tipos para o perfil do usuário e o contexto
+export interface Profile {
+  id: string;
+  email?: string;
+  name?: string;
+  role?: string;
+  avatar_url?: string;
+  created_at?: string;
 }
 
+interface AuthContextType {
+  session: Session | null;
+  user: User | null;
+  profile: Profile | null;
+  loading: boolean;
+  error: string | null;
+  signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+}
+
+// Criação do contexto de autenticação
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const useAuth = () => {
+// Hook personalizado para usar o contexto de autenticação
+export function useAuth() {
   const context = useContext(AuthContext);
-  if (context === undefined) {
+  if (!context) {
     throw new Error('useAuth deve ser usado dentro de um AuthProvider');
   }
   return context;
-};
+}
 
+// Propriedades do provedor de autenticação
 interface AuthProviderProps {
   children: ReactNode;
 }
 
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [profile, setProfile] = useState<AuthContextType['profile']>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const router = useRouter();
+// Provedor de autenticação
+export function AuthProvider({ children }: AuthProviderProps) {
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Verificar autenticação ao iniciar
+  // Função para buscar o perfil do usuário
+  const fetchProfile = async (userId: string) => {
+    try {
+      logDebug(`Buscando perfil para usuário: ${userId}`);
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        logError('Erro ao buscar perfil:', error);
+        throw error;
+      }
+
+      if (data) {
+        logDebug('Perfil encontrado:', { id: data.id, role: data.role });
+        setProfile(data);
+        return data;
+      } else {
+        logDebug('Nenhum perfil encontrado para o ID:', userId);
+        return null;
+      }
+    } catch (error) {
+      logError('Erro ao buscar perfil:', error);
+      return null;
+    }
+  };
+
+  // Função para refreshar perfil (útil após atualizações)
+  const refreshProfile = async () => {
+    if (!user) {
+      logDebug('Não é possível atualizar o perfil: usuário não está logado');
+      return;
+    }
+    
+    try {
+      logDebug('Atualizando perfil do usuário');
+      await fetchProfile(user.id);
+    } catch (error) {
+      logError('Erro ao atualizar perfil:', error);
+    }
+  };
+
+  // Inicializar a autenticação e ouvir mudanças de sessão
   useEffect(() => {
-    const checkAuth = async () => {
+    logDebug('Inicializando contexto de autenticação');
+    
+    const initializeAuth = async () => {
+      setLoading(true);
+      
       try {
-        const { data, error } = await supabase.auth.getSession();
+        // Verificar se já existe uma sessão
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
         
-        if (error || !data.session) {
-          setProfile(null);
+        if (sessionError) {
+          logError('Erro ao obter sessão atual:', sessionError);
+          setError(sessionError.message);
           setLoading(false);
           return;
         }
         
-        // Buscar perfil do usuário
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', data.session.user.id)
-          .single();
-        
-        if (profileData) {
-          setProfile({
-            id: data.session.user.id,
-            email: data.session.user.email || '',
-            name: profileData.name,
-            role: profileData.role
+        if (currentSession) {
+          logDebug('Sessão ativa encontrada', { 
+            userId: currentSession.user.id,
+            expiresAt: currentSession.expires_at
           });
+          
+          setSession(currentSession);
+          setUser(currentSession.user);
+          
+          // Buscar perfil do usuário
+          const userProfile = await fetchProfile(currentSession.user.id);
+          if (!userProfile) {
+            logDebug('Perfil não encontrado para usuário autenticado, criando um básico');
+            setProfile({
+              id: currentSession.user.id,
+              email: currentSession.user.email,
+              role: 'user'
+            });
+          }
         } else {
-          setProfile({
-            id: data.session.user.id,
-            email: data.session.user.email || '',
-            name: data.session.user.email || 'Usuário',
-            role: 'user'
-          });
+          logDebug('Nenhuma sessão ativa encontrada');
         }
       } catch (error) {
-        console.error('Erro ao verificar autenticação:', error);
-        setProfile(null);
+        logError('Erro ao inicializar autenticação:', error);
+        if (error instanceof Error) {
+          setError(error.message);
+        } else {
+          setError('Erro desconhecido ao inicializar autenticação');
+        }
       } finally {
         setLoading(false);
       }
     };
-
-    // Configurar listener para mudanças de autenticação
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state change:', event, !!session);
+    
+    // Inicializar o estado de autenticação
+    initializeAuth();
+    
+    // Configurar listener para alterações de auth
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      logDebug(`Evento de autenticação: ${event}`, { sessionExists: !!newSession });
       
-      if (event === 'SIGNED_IN' && session) {
-        try {
-          // Buscar perfil do usuário
-          const { data: profileData, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (profileError) {
-            console.error('Erro ao buscar perfil:', profileError);
-          }
-            
-          if (profileData) {
-            setProfile({
-              id: session.user.id,
-              email: session.user.email || '',
-              name: profileData.name,
-              role: profileData.role
-            });
-            
-            try {
-              await logAction(
-                'login',
-                `Usuário ${profileData.name} fez login`,
-                'auth',
-                session.user.id,
-                session.user.id
-              );
-            } catch (logError) {
-              console.error('Erro ao registrar log de login:', logError);
-            }
-          } else {
-            // Se não encontrar perfil, usar dados básicos do usuário
-            setProfile({
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.email || 'Usuário',
-              role: 'user'
-            });
-          }
-          
-          setLoading(false);
-        } catch (error) {
-          console.error('Erro ao processar login:', error);
-          setLoading(false);
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (newSession) {
+          logDebug('Usuário fez login ou token atualizado', { userId: newSession.user.id });
+          setSession(newSession);
+          setUser(newSession.user);
+          await fetchProfile(newSession.user.id);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        logDebug('Usuário fez logout');
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } else if (event === 'USER_UPDATED') {
+        logDebug('Dados do usuário atualizados');
+        if (newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+          await fetchProfile(newSession.user.id);
         }
       }
-      
-      if (event === 'SIGNED_OUT') {
-        setProfile(null);
-        setLoading(false);
-        // Remover redirecionamento automático ao fazer logout
-        // router.push('/login');
-      }
     });
-
-    checkAuth();
-
+    
+    // Cleanup do listener
     return () => {
+      logDebug('Limpando listener de autenticação');
       authListener.subscription.unsubscribe();
     };
-  }, [router]);
+  }, []);
 
-  // Função para login
+  // Função para fazer login
   const signIn = async (email: string, password: string) => {
     try {
+      logDebug(`Tentando fazer login com email: ${email}`);
+      
+      // Verificar se já existe uma sessão e fazer logout se necessário
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        logDebug('Sessão existente encontrada, fazendo logout primeiro');
+        await supabase.auth.signOut();
+      }
+      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
-      
-      if (error || !data.user) {
-        return { 
-          success: false, 
-          error: error ? error.message : 'Falha na autenticação' 
-        };
+
+      if (error) {
+        logError('Erro no login:', error);
+        return { success: false, error: error.message };
       }
 
-      // Buscar perfil imediatamente após login bem-sucedido
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', data.user.id)
-        .single();
-        
-      if (!profileError && profileData) {
-        setProfile({
-          id: data.user.id,
-          email: data.user.email || '',
-          name: profileData.name,
-          role: profileData.role
-        });
+      if (!data.session) {
+        logError('Login sem sessão retornada');
+        return { success: false, error: 'Falha ao criar sessão' };
+      }
+
+      logDebug('Login bem-sucedido:', { userId: data.user?.id });
+      setSession(data.session);
+      setUser(data.user);
+      
+      // Se login bem-sucedido, buscar perfil
+      if (data.user) {
+        await fetchProfile(data.user.id);
       }
 
       return { success: true };
     } catch (error) {
-      console.error('Erro no login:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido no login' 
-      };
+      logError('Erro durante o processo de login:', error);
+      if (error instanceof Error) {
+        return { success: false, error: error.message };
+      }
+      return { success: false, error: 'Erro desconhecido ao fazer login' };
     }
   };
 
-  // Função para logout
+  // Função para fazer logout
   const signOut = async () => {
     try {
-      if (profile) {
-        await logAction(
-          'logout',
-          `Usuário ${profile.name} fez logout`,
-          'auth',
-          profile.id,
-          profile.id
-        );
+      logDebug('Iniciando logout');
+      
+      // Limpar estado local antes de chamar signOut para evitar estado inconsistente
+      setProfile(null);
+      
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        logError('Erro ao fazer logout:', error);
+        throw error;
       }
       
-      await supabase.auth.signOut();
-      setProfile(null);
-      // Forçar redirecionamento para página de login usando window.location
-      window.location.href = window.location.origin + '/login';
+      // Reset completo do estado
+      setSession(null);
+      setUser(null);
+      
+      logDebug('Logout realizado com sucesso');
     } catch (error) {
-      console.error('Erro no logout:', error);
+      logError('Erro durante o processo de logout:', error);
+      if (error instanceof Error) {
+        setError(error.message);
+      } else {
+        setError('Erro desconhecido ao fazer logout');
+      }
     }
   };
 
-  return (
-    <AuthContext.Provider value={{ profile, loading, signIn, signOut }}>
-      {children}
-    </AuthContext.Provider>
-  );
-}; 
+  // Valores do contexto
+  const value: AuthContextType = {
+    session,
+    user,
+    profile,
+    loading,
+    error,
+    signIn,
+    signOut,
+    refreshProfile,
+  };
+
+  logDebug('Renderizando AuthProvider', { 
+    isAuthenticated: !!session,
+    hasProfile: !!profile,
+    isLoading: loading
+  });
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+} 

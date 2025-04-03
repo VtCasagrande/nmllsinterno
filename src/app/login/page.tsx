@@ -23,6 +23,23 @@ const logError = (message: string, error?: any) => {
   console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
 };
 
+// Função para forçar o redirecionamento
+const forceRedirect = (url: string) => {
+  logDebug(`🔄 FORÇANDO REDIRECIONAMENTO para: ${url}`);
+  try {
+    // Usar diretamente location.href para mudar a URL
+    window.location.href = url;
+  } catch (err) {
+    logError('Erro ao forçar redirecionamento:', err);
+    // Como último recurso, tentar replace
+    try {
+      window.location.replace(url);
+    } catch (err2) {
+      logError('Erro ao usar location.replace:', err2);
+    }
+  }
+};
+
 function LoginContent() {
   const [formData, setFormData] = useState({
     email: '',
@@ -82,6 +99,16 @@ function LoginContent() {
         text: decodeURIComponent(success)
       });
     }
+
+    // Verificamos se há um token na URL (pode indicar um retorno de auth)
+    const hasAuthParams = window.location.hash && (
+      window.location.hash.includes('access_token') || 
+      window.location.hash.includes('error')
+    );
+
+    if (hasAuthParams) {
+      logDebug('Parâmetros de autenticação detectados na URL');
+    }
   }, [searchParams]);
   
   // Verificar se já está autenticado ao carregar a página
@@ -100,25 +127,11 @@ function LoginContent() {
         
         if (data.session) {
           logDebug(`Usuário autenticado, ID: ${data.session.user.id}`);
-          logDebug('Redirecionando para dashboard...');
           
-          // Usar timeout para garantir que o redirecionamento ocorra após a renderização
-          setTimeout(() => {
-            const dashboardUrl = window.location.origin + '/dashboard';
-            logDebug(`URL de redirecionamento: ${dashboardUrl}`);
-            
-            // Tentar usar primeiro o router para navegação no lado do cliente
-            try {
-              router.push('/dashboard');
-              logDebug('Navegação iniciada via router.push');
-            } catch (routerErr) {
-              logError('Erro ao usar router.push:', routerErr);
-              
-              // Fallback para location.replace se o router falhar
-              window.location.replace(dashboardUrl);
-              logDebug('Navegação via location.replace (fallback)');
-            }
-          }, 500);
+          // Forçar redirecionamento imediato para o dashboard
+          const dashboardUrl = window.location.origin + '/dashboard';
+          logDebug(`Redirecionando imediatamente para: ${dashboardUrl}`);
+          forceRedirect(dashboardUrl);
         } else {
           logDebug('Usuário não autenticado');
         }
@@ -128,7 +141,7 @@ function LoginContent() {
     };
     
     checkAuthStatus();
-  }, [router]);
+  }, []);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -222,32 +235,13 @@ function LoginContent() {
       const redirectTo = searchParams.get('redirect') || '/dashboard';
       logDebug(`Redirecionando para: ${redirectTo}`);
       
-      // Forçar redirecionamento com timeout para garantir que aconteça
-      setTimeout(() => {
-        try {
-          const fullRedirectUrl = redirectTo.startsWith('/') 
-            ? window.location.origin + redirectTo
-            : redirectTo;
-            
-          logDebug(`URL de redirecionamento completa: ${fullRedirectUrl}`);
-          
-          // Tentar usar o router primeiro
-          try {
-            router.push(redirectTo);
-            logDebug('Navegação via router.push iniciada');
-          } catch (routerErr) {
-            logError('Erro ao usar router.push:', routerErr);
-            
-            // Fallback para location.replace se o router falhar
-            window.location.replace(fullRedirectUrl);
-            logDebug('Navegação via location.replace (fallback)');
-          }
-        } catch (navError) {
-          logError('Erro durante o redirecionamento:', navError);
-          // Último recurso: recarregar a página
-          window.location.reload();
-        }
-      }, 1000);
+      // Forçar redirecionamento imediato para o dashboard
+      const fullRedirectUrl = redirectTo.startsWith('/') 
+        ? window.location.origin + redirectTo
+        : redirectTo;
+      
+      logDebug(`URL de redirecionamento completa: ${fullRedirectUrl}`);
+      forceRedirect(fullRedirectUrl);
       
     } catch (error) {
       logError('Erro durante o login:', error);
@@ -310,29 +304,11 @@ function LoginContent() {
         sessionId: data.session?.access_token.substring(0, 10) + '...',
       });
       
-      // Forçar redirecionamento usando timeout e location.replace
-      setTimeout(() => {
-        try {
-          const dashboardUrl = window.location.origin + '/dashboard';
-          logDebug(`Redirecionando para dashboard: ${dashboardUrl}`);
-          
-          // Tentar usar o router primeiro
-          try {
-            router.push('/dashboard');
-            logDebug('Navegação demo via router.push iniciada');
-          } catch (routerErr) {
-            logError('Erro ao usar router.push para demo:', routerErr);
-            
-            // Fallback para location.replace se o router falhar
-            window.location.replace(dashboardUrl);
-            logDebug('Navegação demo via location.replace (fallback)');
-          }
-        } catch (navError) {
-          logError('Erro durante o redirecionamento demo:', navError);
-          // Último recurso: recarregar a página
-          window.location.reload();
-        }
-      }, 1000);
+      // Forçar redirecionamento imediato para o dashboard
+      const dashboardUrl = window.location.origin + '/dashboard';
+      logDebug(`Redirecionando para dashboard: ${dashboardUrl}`);
+      forceRedirect(dashboardUrl);
+      
     } catch (error) {
       logError('Erro durante login demo:', error);
       setLoginMessage({
@@ -348,15 +324,9 @@ function LoginContent() {
       <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
         <div className="text-center">
           <div className="flex justify-center mb-4">
-            <Image 
-              src="/logo.png" 
-              alt="Nmalls Logo" 
-              width={150} 
-              height={50}
-              className="h-12 w-auto"
-              onLoad={() => logDebug('Logo carregado com sucesso')}
-              onError={() => logError('Erro ao carregar logo')}
-            />
+            <div className="h-12 flex items-center justify-center">
+              <span className="text-xl font-bold text-blue-600">Nmalls Logo</span>
+            </div>
           </div>
           <h2 className="text-2xl font-extrabold text-gray-900">
             Entrar no Sistema
@@ -502,7 +472,7 @@ function LoginContent() {
 export default function LoginPage() {
   // Log quando a página é renderizada
   useEffect(() => {
-    console.log('🔐 Página de login renderizada');
+    logDebug('Página de login renderizada');
   }, []);
   
   return (
