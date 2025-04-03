@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 
@@ -23,6 +23,7 @@ const logError = (message: string, error?: any) => {
 
 export default function RedirectToDashboard() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(5);
@@ -46,13 +47,29 @@ export default function RedirectToDashboard() {
         
         if (!data.session) {
           logError('Sessão não encontrada');
-          setError('Você não está logado. Por favor, faça login novamente.');
-          setIsLoading(false);
-          return;
+          // Tentar atualizar a sessão com o supabase
+          try {
+            logDebug('Tentando atualizar a sessão');
+            const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+            
+            if (refreshError || !refreshData.session) {
+              logError('Falha ao atualizar sessão', refreshError);
+              setError('Você não está logado. Por favor, faça login novamente.');
+              setIsLoading(false);
+              return;
+            }
+            
+            logDebug('Sessão atualizada com sucesso');
+          } catch (refreshErr) {
+            logError('Erro ao atualizar sessão', refreshErr);
+            setError('Você não está logado. Por favor, faça login novamente.');
+            setIsLoading(false);
+            return;
+          }
         }
         
         // Sessão encontrada, verificando o token
-        logDebug('Sessão encontrada, ID do usuário:', data.session.user.id);
+        logDebug('Sessão encontrada, ID do usuário:', data.session?.user.id);
         setSessionVerified(true);
         
         // Iniciar contagem regressiva para redirecionamento
@@ -81,23 +98,40 @@ export default function RedirectToDashboard() {
     // Função para executar o redirecionamento
     const executarRedirecionamento = () => {
       try {
-        logDebug('Executando redirecionamento para /dashboard');
+        // Verificar parâmetros de URL
+        const destination = searchParams.get('redirect') || '/dashboard';
+        logDebug(`Executando redirecionamento para: ${destination}`);
+        
+        // Para URLs com parâmetros específicos
+        if (destination.includes('?')) {
+          logDebug('Destino contém parâmetros, processando URL especial');
+          // Pode ser necessário um tratamento adicional aqui para URLs complexas
+        }
+        
+        // Para URLs que vêm do parâmetro redirect da URL de login
+        // Estes podem estar codificados como %2F (/) 
+        const decodedDestination = destination.startsWith('%2F') 
+          ? decodeURIComponent(destination) 
+          : destination;
+        
+        logDebug(`Destino decodificado: ${decodedDestination}`);
+        const finalDestination = decodedDestination || '/dashboard';
         
         // Primeiro tentar navegar com o router para evitar refresh completo
-        router.push('/dashboard');
+        router.push(finalDestination);
         
         // Backup - usar location.replace depois de um pequeno delay
         setTimeout(() => {
           // Verificar se ainda estamos na página de redirecionamento
           if (window.location.pathname.includes('redirect-to-dashboard')) {
             logDebug('Redirecionamento pelo router pode ter falhado, usando window.location');
-            window.location.replace('/dashboard');
+            window.location.replace(finalDestination);
             
             // Segundo backup - último recurso
             setTimeout(() => {
               if (window.location.pathname.includes('redirect-to-dashboard')) {
                 logDebug('Tentativas anteriores falharam, usando location.href como último recurso');
-                window.location.href = '/dashboard';
+                window.location.href = finalDestination;
               }
             }, 500);
           }
@@ -111,12 +145,16 @@ export default function RedirectToDashboard() {
     
     // Iniciar o processo
     checkSessionAndRedirect();
-  }, [router]);
+  }, [router, searchParams]);
 
   // Função para redirecionar manualmente
   const handleManualRedirect = () => {
     logDebug('Redirecionamento manual acionado pelo usuário');
-    window.location.href = '/dashboard';
+    const destination = searchParams.get('redirect') || '/dashboard';
+    const decodedDestination = destination.startsWith('%2F') 
+      ? decodeURIComponent(destination) 
+      : destination;
+    window.location.href = decodedDestination;
   };
 
   // Se estiver carregando, mostrar tela de carregamento com contagem regressiva

@@ -149,7 +149,7 @@ function LoginContent() {
       }
       
       // Sucesso no login
-      logDebug('Login bem-sucedido, redirecionando para página intermediária');
+      logDebug('Login bem-sucedido, preparando redirecionamento');
       
       // Mostrar mensagem de sucesso
       setLoginMessage({
@@ -160,9 +160,36 @@ function LoginContent() {
       // Atualizar o estado para parar o loading
       setIsLoading(false);
       
-      // Redirecionar para a página intermediária de redirecionamento em vez de tentar redirecionar diretamente
-      // Esta abordagem é mais simples e evita o problema de redirecionamento
-      window.location.href = '/redirect-to-dashboard';
+      // Verificar se há um caminho de redirecionamento nos parâmetros
+      const redirectPath = searchParams.get('redirect');
+      logDebug(`Parâmetro de redirecionamento: ${redirectPath}`);
+      
+      // Aguardar um pequeno tempo para garantir que a sessão foi estabelecida
+      setTimeout(() => {
+        try {
+          // Se houver um parâmetro de redirecionamento e for para o dashboard, ir primeiro para a página intermediária
+          if (redirectPath && (redirectPath === '/dashboard' || redirectPath.startsWith('/dashboard/'))) {
+            logDebug('Redirecionando para a página intermediária');
+            window.location.href = '/redirect-to-dashboard';
+            return;
+          }
+          
+          // Se houver um redirecionamento específico diferente do dashboard, ir para esse caminho
+          if (redirectPath && redirectPath !== '/dashboard') {
+            logDebug(`Redirecionando para caminho específico: ${redirectPath}`);
+            window.location.href = redirectPath;
+            return;
+          }
+          
+          // Por padrão, redirecionar para a página intermediária
+          logDebug('Redirecionando para a página intermediária (padrão)');
+          window.location.href = '/redirect-to-dashboard';
+        } catch (redirectErr) {
+          logError('Erro ao processar redirecionamento:', redirectErr);
+          // Em caso de erro, enviar para o dashboard diretamente como último recurso
+          window.location.href = '/dashboard';
+        }
+      }, 300);
       
     } catch (error) {
       logError('Erro durante o login:', error);

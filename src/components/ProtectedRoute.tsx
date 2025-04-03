@@ -39,6 +39,32 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
       try {
         logDebug('Iniciando verificação de autenticação');
         
+        // Função para redirecionar para login com um caminho
+        const redirectToLogin = (currentPath: string) => {
+          try {
+            // Garantir que o caminho está no formato correto
+            const encodedPath = encodeURIComponent(currentPath.startsWith('/') ? currentPath : `/${currentPath}`);
+            const loginUrl = `/login?redirect=${encodedPath}`;
+            
+            logDebug(`Redirecionando para login com caminho: ${encodedPath}`);
+            
+            // Fazer o redirecionamento usando o router
+            router.push(loginUrl);
+            
+            // Como último recurso, em caso de problemas com o router
+            setTimeout(() => {
+              if (!authorized) {
+                logDebug('Usando redirecionamento direto como backup');
+                window.location.href = loginUrl;
+              }
+            }, 500);
+          } catch (err) {
+            logError('Erro ao redirecionar para login', err);
+            // Em caso de erro, tentar redirecionamento direto com URL padrão
+            window.location.href = '/login';
+          }
+        };
+        
         // Se estamos carregando o contexto de autenticação e ainda temos tentativas, aguardar
         if (authLoading && retryCount < MAX_RETRIES) {
           logDebug(`Contexto de autenticação carregando, tentativa ${retryCount + 1} de ${MAX_RETRIES + 1}`);
@@ -87,21 +113,27 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
           return;
         }
         
-        // Usuário não está autenticado se chegou até aqui
-        logDebug('Usuário não autenticado, redirecionando para login');
-        const currentPath = window.location.pathname;
-        const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
-        
-        // Fazer o redirecionamento usando o router
-        router.push(loginUrl);
-        
-        // Como último recurso, em caso de problemas com o router
-        setTimeout(() => {
-          if (!authorized) {
-            logDebug('Usando redirecionamento direto como backup');
-            window.location.href = loginUrl;
+        // Tentar atualizar a sessão como último recurso antes de redirecionar
+        try {
+          logDebug('Tentando atualizar a sessão');
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (!refreshError && refreshData.session) {
+            logDebug('Sessão atualizada com sucesso via refresh', { 
+              userId: refreshData.session.user.id 
+            });
+            setAuthorized(true);
+            setLoading(false);
+            return;
           }
-        }, 500);
+        } catch (refreshErr) {
+          logError('Erro ao atualizar sessão', refreshErr);
+        }
+        
+        // Usuário não está autenticado se chegou até aqui
+        logDebug('Usuário não autenticado, preparando redirecionamento para login');
+        const currentPath = window.location.pathname;
+        redirectToLogin(currentPath);
         
         setLoading(false);
       } catch (error) {
