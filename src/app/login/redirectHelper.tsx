@@ -2,11 +2,14 @@
 
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useRouter } from 'next/navigation';
 
 export function RedirectHelper() {
+  const router = useRouter();
+  
   useEffect(() => {
-    // Função para verificar autenticação e redirecionar
-    const checkAuthAndRedirect = async () => {
+    // Função para verificar autenticação
+    const checkAuth = async () => {
       console.log('RedirectHelper: Verificando autenticação');
       
       try {
@@ -14,9 +17,9 @@ export function RedirectHelper() {
         const { data } = await supabase.auth.getSession();
         
         if (data.session) {
-          console.log('RedirectHelper: Sessão encontrada, redirecionando para dashboard');
-          // Redirecionar de forma direta e simples
-          window.location.href = '/dashboard';
+          console.log('RedirectHelper: Sessão encontrada, pronta para redirecionar');
+          // NÃO redirecionamos automaticamente, permitimos que o fluxo normal ocorra
+          // O redirecionamento acontecerá através do componente de login ou da página de redirecionamento
         } else {
           console.log('RedirectHelper: Sem sessão ativa');
         }
@@ -25,16 +28,10 @@ export function RedirectHelper() {
       }
     };
     
-    // Executar verificação
-    checkAuthAndRedirect();
+    // Verificar apenas uma vez, não periodicamente
+    checkAuth();
     
-    // Definir um intervalo para verificar periodicamente
-    const interval = setInterval(() => {
-      checkAuthAndRedirect();
-    }, 2000);
-    
-    // Limpar o intervalo quando o componente for desmontado
-    return () => clearInterval(interval);
+    // Removido o setInterval para evitar redirecionamentos indesejados
   }, []);
   
   // Este componente não renderiza nada visualmente
