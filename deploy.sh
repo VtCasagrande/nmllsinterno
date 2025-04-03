@@ -34,6 +34,41 @@ if [ ! -f postcss.config.js ]; then
   echo "module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }" > postcss.config.js
 fi
 
+# Verificar se a página de redirecionamento já tem o wrapper de Suspense
+# (Isso é para garantir compatibilidade caso o arquivo não tenha sido atualizado pelo git)
+REDIRECT_PAGE="src/app/redirect-to-dashboard/page.tsx"
+if [ -f "$REDIRECT_PAGE" ] && ! grep -q "Suspense" "$REDIRECT_PAGE"; then
+  echo "Adicionando wrapper de Suspense na página de redirecionamento"
+  # Criar um backup do arquivo original
+  cp "$REDIRECT_PAGE" "${REDIRECT_PAGE}.bak"
+  # Usar sed para modificar o arquivo in-place
+  sed -i -E 's/export default function RedirectToDashboard\(\) \{/function RedirectContent() {/' "$REDIRECT_PAGE"
+  # Adicionar o wrapper de Suspense ao final do arquivo
+  cat >> "$REDIRECT_PAGE" << 'EOL'
+
+// Componente para mostrar durante o carregamento
+function RedirectLoading() {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <h1 className="text-2xl font-bold mb-2 text-blue-600">Carregando...</h1>
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
+      <p className="text-gray-600">Preparando redirecionamento...</p>
+    </div>
+  );
+}
+
+export default function RedirectToDashboard() {
+  return (
+    <Suspense fallback={<RedirectLoading />}>
+      <RedirectContent />
+    </Suspense>
+  );
+}
+EOL
+  # Adicionar o import do Suspense no topo do arquivo
+  sed -i -E '0,/import React, \{ useState, useEffect/s//import React, { useState, useEffect, Suspense/' "$REDIRECT_PAGE"
+fi
+
 # Executar a build
 npm run build
 
