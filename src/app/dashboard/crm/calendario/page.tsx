@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCRM } from '@/contexts/CRMContext';
-import { StatusCRM, AtendimentoCRM } from '@/types/crm';
+import { useCRM, StatusCRM, AtendimentoCRM } from '@/contexts/CRMContext';
 import { ArrowLeft, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, X } from 'lucide-react';
 import Link from 'next/link';
 import { format, addDays } from 'date-fns';

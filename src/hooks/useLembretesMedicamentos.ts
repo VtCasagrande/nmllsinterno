@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { useWebhooks } from '@/contexts/WebhooksContext';
-import { WebhookEventType } from '@/types/webhooks';
+import { useWebhooks, WebhookEventType } from '@/contexts/WebhooksContext';
 
 export interface ProcessarLembretesResult {
   sucesso: boolean;
