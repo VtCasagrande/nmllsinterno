@@ -540,7 +540,6 @@ function FormularioFinalizar({
 
 export default function DetalhesEntrega() {
   const { id } = useParams();
-  const rotaId = Array.isArray(id) ? id[0] : id;
   const router = useRouter();
   const { toast } = useToast();
   const { profile } = useAuth();
@@ -574,11 +573,11 @@ export default function DetalhesEntrega() {
   // Carregar entrega via Supabase
   useEffect(() => {
     const carregarEntrega = async () => {
-      if (!rotaId) return;
+      if (!id) return;
       
       try {
         setLoading(true);
-        const entregaData = await rotasService.buscarRotaPorId(rotaId);
+        const entregaData = await rotasService.buscarRotaPorId(id);
         
         if (!entregaData) {
           setError('Entrega não encontrada');
@@ -588,7 +587,7 @@ export default function DetalhesEntrega() {
         setEntrega(entregaData);
         
         // Carregar fotos da entrega
-        const fotosEntrega = await rotasService.obterFotosEntrega(rotaId);
+        const fotosEntrega = await rotasService.obterFotosEntrega(id);
         setFotos(fotosEntrega);
         
       } catch (err) {
@@ -602,7 +601,7 @@ export default function DetalhesEntrega() {
     carregarEntrega();
     
     // Configurar atualizações em tempo real
-    const subscription = rotasService.obterAtualizacoesTempoReal(rotaId, (atualizacao) => {
+    const subscription = rotasService.obterAtualizacoesTempoReal(id, (atualizacao) => {
       // Atualizar o estado da entrega quando houver mudanças
       setEntrega((prevEntrega: any) => {
         if (!prevEntrega) return atualizacao;
@@ -614,7 +613,7 @@ export default function DetalhesEntrega() {
       // Desinscrever das atualizações em tempo real
       subscription.unsubscribe();
     };
-  }, [rotaId]);
+  }, [id]);
 
   // Atualizar localização do motorista
   useEffect(() => {
@@ -629,7 +628,7 @@ export default function DetalhesEntrega() {
             try {
               const { latitude, longitude } = position.coords;
               await rotasService.atualizarLocalizacaoEntrega(
-                rotaId,
+                id,
                 latitude,
                 longitude,
                 profile.id
@@ -657,7 +656,7 @@ export default function DetalhesEntrega() {
         navigator.geolocation.clearWatch(positionWatcher);
       }
     };
-  }, [entrega?.status, rotaId, profile?.id]);
+  }, [entrega?.status, id, profile?.id]);
 
   if (loading) {
     return (
@@ -708,7 +707,7 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a assinatura...",
       });
       
-      const sucesso = await rotasService.adicionarAssinatura(rotaId, assinaturaUrl, profile.id);
+      const sucesso = await rotasService.adicionarAssinatura(id, assinaturaUrl, profile.id);
       
       if (sucesso) {
         toast({
@@ -752,7 +751,7 @@ export default function DetalhesEntrega() {
         description: "Aguarde enquanto salvamos a foto...",
       });
       
-      const fotoUrl = await rotasService.adicionarFotoEntrega(rotaId, fotoFile, profile.id);
+      const fotoUrl = await rotasService.adicionarFotoEntrega(id, fotoFile, profile.id);
       
       if (fotoUrl) {
         toast({
@@ -798,7 +797,7 @@ export default function DetalhesEntrega() {
       });
       
       const sucesso = await rotasService.finalizarEntrega(
-        rotaId, 
+        id, 
         {
           assinatura: assinatura || undefined,
           observacoes: formFinalizarEntrega.observacoes,
@@ -856,7 +855,7 @@ export default function DetalhesEntrega() {
       
       // Se estiver iniciando a entrega (colocando em rota)
       if (novoStatus === StatusEntrega.EM_ROTA) {
-        await rotasService.atualizarStatusRota(rotaId, 'em_andamento', profile.id);
+        await rotasService.atualizarStatusRota(id, 'em_andamento', profile.id);
         
         toast({
           title: "Sucesso!",
@@ -877,7 +876,7 @@ export default function DetalhesEntrega() {
           isDanger: true,
           action: async () => {
             try {
-              await rotasService.atualizarStatusRota(rotaId, 'cancelada', profile.id);
+              await rotasService.atualizarStatusRota(id, 'cancelada', profile.id);
               
               toast({
                 title: "Entrega cancelada",
