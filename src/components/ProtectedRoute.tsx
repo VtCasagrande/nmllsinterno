@@ -30,14 +30,18 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const router = useRouter();
-  const { session, user, profile, loading: authLoading } = useAuth();
+  const { session, user, profile, profileLoaded, loading: authLoading } = useAuth();
   const [retryCount, setRetryCount] = useState(0);
-  const MAX_RETRIES = 2;
+  const MAX_RETRIES = 3;
 
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        logDebug('Iniciando verificação de autenticação');
+        logDebug('Iniciando verificação de autenticação', { 
+          hasSession: !!session, 
+          hasProfile: !!profile,
+          profileLoaded: profileLoaded
+        });
         
         // Função para redirecionar para login com um caminho
         const redirectToLogin = (currentPath: string) => {
@@ -66,8 +70,8 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
         };
         
         // Se estamos carregando o contexto de autenticação e ainda temos tentativas, aguardar
-        if (authLoading && retryCount < MAX_RETRIES) {
-          logDebug(`Contexto de autenticação carregando, tentativa ${retryCount + 1} de ${MAX_RETRIES + 1}`);
+        if ((authLoading || (session && !profileLoaded)) && retryCount < MAX_RETRIES) {
+          logDebug(`Aguardando carregamento completo, tentativa ${retryCount + 1} de ${MAX_RETRIES + 1}`);
           // Incrementar contador de tentativas
           setRetryCount(prev => prev + 1);
           // Tentar novamente após um breve delay
@@ -75,9 +79,13 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
           return;
         }
 
-        // Se já temos uma sessão no contexto, o usuário está autenticado
-        if (session) {
-          logDebug('Usuário autenticado via contexto:', { userId: user?.id });
+        // Se já temos uma sessão no contexto E o perfil foi carregado, o usuário está autenticado
+        if (session && profileLoaded) {
+          logDebug('Usuário autenticado via contexto com perfil carregado:', { 
+            userId: user?.id, 
+            profileId: profile?.id,
+            role: profile?.role 
+          });
           
           // Se temos papéis restritos, verificar se o usuário tem acesso
           if (allowedRoles.length > 0) {
@@ -97,6 +105,33 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
           return;
         }
         
+        // Se temos sessão mas o perfil ainda não foi carregado, e já esgotamos as tentativas
+        if (session && !profileLoaded && retryCount >= MAX_RETRIES) {
+          logDebug('Sessão existe, mas perfil não foi carregado após várias tentativas. Forçando carregamento...');
+          
+          try {
+            // Tentar carregar o perfil diretamente
+            if (user) {
+              // Buscar perfil diretamente do Supabase
+              const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', user.id)
+                .single();
+                
+              if (!error && data) {
+                logDebug('Perfil obtido manualmente:', data);
+                // Perfil obtido com sucesso, permitir acesso
+                setAuthorized(true);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (profileErr) {
+            logError('Erro ao carregar perfil manualmente:', profileErr);
+          }
+        }
+        
         // Se não temos sessão no contexto, verificar diretamente no Supabase
         const { data, error: sessionError } = await supabase.auth.getSession();
         
@@ -107,10 +142,38 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
         
         if (data.session) {
           logDebug('Usuário autenticado via Supabase:', { userId: data.session.user.id });
-          // Tem sessão no Supabase, mas não no contexto - permitir acesso
-          setAuthorized(true);
-          setLoading(false);
-          return;
+          
+          // Temos uma sessão, mas precisamos verificar o perfil
+          try {
+            // Buscar perfil diretamente
+            const { data: profileData, error: profileError } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', data.session.user.id)
+              .single();
+              
+            if (!profileError && profileData) {
+              logDebug('Perfil obtido do Supabase:', profileData);
+              
+              // Verificar permissões se necessário
+              if (allowedRoles.length > 0) {
+                const userRole = profileData.role || 'user';
+                if (!allowedRoles.includes(userRole)) {
+                  logDebug('Usuário não tem papel permitido:', { userRole, allowedRoles });
+                  alert('Você não tem permissão para acessar esta página.');
+                  router.push('/dashboard');
+                  return;
+                }
+              }
+              
+              // Perfil obtido e verificado, permitir acesso
+              setAuthorized(true);
+              setLoading(false);
+              return;
+            }
+          } catch (profileErr) {
+            logError('Erro ao buscar perfil diretamente:', profileErr);
+          }
         }
         
         // Tentar atualizar a sessão como último recurso antes de redirecionar
@@ -122,9 +185,37 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
             logDebug('Sessão atualizada com sucesso via refresh', { 
               userId: refreshData.session.user.id 
             });
-            setAuthorized(true);
-            setLoading(false);
-            return;
+            
+            // Buscar perfil após refresh
+            try {
+              const { data: refreshProfileData, error: refreshProfileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', refreshData.session.user.id)
+                .single();
+                
+              if (!refreshProfileError && refreshProfileData) {
+                logDebug('Perfil obtido após refresh:', refreshProfileData);
+                
+                // Verificar permissões se necessário
+                if (allowedRoles.length > 0) {
+                  const userRole = refreshProfileData.role || 'user';
+                  if (!allowedRoles.includes(userRole)) {
+                    logDebug('Usuário não tem papel permitido após refresh:', { userRole, allowedRoles });
+                    alert('Você não tem permissão para acessar esta página.');
+                    router.push('/dashboard');
+                    return;
+                  }
+                }
+                
+                // Permitir acesso após refresh e verificação de perfil
+                setAuthorized(true);
+                setLoading(false);
+                return;
+              }
+            } catch (refreshProfileErr) {
+              logError('Erro ao buscar perfil após refresh:', refreshProfileErr);
+            }
           }
         } catch (refreshErr) {
           logError('Erro ao atualizar sessão', refreshErr);
@@ -152,9 +243,28 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
             
             if (data.session) {
               logDebug('Autenticação restaurada com sucesso');
-              setAuthorized(true);
-              setLoading(false);
-              return;
+              
+              // Tentar buscar perfil
+              const { data: profileData, error: profileError } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', data.session.user.id)
+                .single();
+                
+              if (!profileError && profileData) {
+                // Verificar permissões se necessário
+                if (allowedRoles.length > 0) {
+                  const userRole = profileData.role || 'user';
+                  if (!allowedRoles.includes(userRole)) {
+                    router.push('/dashboard');
+                    return;
+                  }
+                }
+                
+                setAuthorized(true);
+                setLoading(false);
+                return;
+              }
             }
           }
         } catch (storageError) {
@@ -171,7 +281,7 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
 
     // Iniciar a verificação
     checkAuth();
-  }, [router, allowedRoles, session, user, profile, authLoading, retryCount, authorized]);
+  }, [router, allowedRoles, session, user, profile, profileLoaded, authLoading, retryCount, authorized]);
 
   // Mostrar loader enquanto verifica autenticação
   if (loading) {
@@ -180,6 +290,11 @@ export default function ProtectedRoute({ children, allowedRoles = [] }: Protecte
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
           <p className="text-gray-600">Verificando autenticação...</p>
+          {retryCount > 0 && session && !profileLoaded && (
+            <p className="text-sm text-orange-600 mt-2">
+              Carregando dados do perfil... ({retryCount}/{MAX_RETRIES})
+            </p>
+          )}
         </div>
       </div>
     );

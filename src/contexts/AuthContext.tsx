@@ -36,6 +36,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   error: string | null;
+  profileLoaded: boolean;
   signIn: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -388,6 +389,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     profile,
     loading,
     error,
+    profileLoaded,
     signIn,
     signOut,
     refreshProfile,
