@@ -7,6 +7,22 @@ import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 
+// Função de log melhorada para exibir no console
+const logDebug = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  if (data) {
+    console.log(`[${timestamp}] 📝 LOGIN DEBUG: ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] 📝 LOGIN DEBUG: ${message}`);
+  }
+};
+
+// Função de log de erro melhorada
+const logError = (message: string, error?: any) => {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
+};
+
 function LoginContent() {
   const [formData, setFormData] = useState({
     email: '',
@@ -36,6 +52,8 @@ function LoginContent() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
     
+    logDebug('Inicialização do componente de login', { url });
+    
     setSupabaseDetails({
       url: url,
       key: key ? key.substring(0, 10) + '...' : key
@@ -43,17 +61,22 @@ function LoginContent() {
     
     // Verifica se há parâmetros de redirect
     const redirect = searchParams.get('redirect');
+    if (redirect) {
+      logDebug(`Parâmetro de redirecionamento encontrado: ${redirect}`);
+    }
     
     // Verifica se há mensagem de erro ou sucesso nos parâmetros
     const error = searchParams.get('error');
     const success = searchParams.get('success');
     
     if (error) {
+      logDebug(`Erro encontrado nos parâmetros: ${error}`);
       setLoginMessage({
         type: 'error',
         text: decodeURIComponent(error)
       });
     } else if (success) {
+      logDebug(`Sucesso encontrado nos parâmetros: ${success}`);
       setLoginMessage({
         type: 'success',
         text: decodeURIComponent(success)
@@ -65,22 +88,47 @@ function LoginContent() {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
+        logDebug('Verificando status de autenticação...');
         const { data, error } = await supabase.auth.getSession();
         
-        if (!error && data.session) {
-          console.log('Usuário já está autenticado, redirecionando para dashboard...');
+        if (error) {
+          logError('Erro ao obter sessão:', error);
+          return;
+        }
+        
+        logDebug('Sessão atual:', data);
+        
+        if (data.session) {
+          logDebug(`Usuário autenticado, ID: ${data.session.user.id}`);
+          logDebug('Redirecionando para dashboard...');
+          
           // Usar timeout para garantir que o redirecionamento ocorra após a renderização
           setTimeout(() => {
-            window.location.href = window.location.origin + '/dashboard';
-          }, 100);
+            const dashboardUrl = window.location.origin + '/dashboard';
+            logDebug(`URL de redirecionamento: ${dashboardUrl}`);
+            
+            // Tentar usar primeiro o router para navegação no lado do cliente
+            try {
+              router.push('/dashboard');
+              logDebug('Navegação iniciada via router.push');
+            } catch (routerErr) {
+              logError('Erro ao usar router.push:', routerErr);
+              
+              // Fallback para location.replace se o router falhar
+              window.location.replace(dashboardUrl);
+              logDebug('Navegação via location.replace (fallback)');
+            }
+          }, 500);
+        } else {
+          logDebug('Usuário não autenticado');
         }
       } catch (err) {
-        console.error('Erro ao verificar sessão existente:', err);
+        logError('Erro ao verificar sessão existente:', err);
       }
     };
     
     checkAuthStatus();
-  }, []);
+  }, [router]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -120,6 +168,7 @@ function LoginContent() {
     e.preventDefault();
     
     if (!validarFormulario()) {
+      logDebug('Validação do formulário falhou');
       return;
     }
     
@@ -127,16 +176,24 @@ function LoginContent() {
     setLoginMessage(null);
     
     try {
-      console.log('Iniciando login para:', formData.email);
+      logDebug(`Iniciando login para: ${formData.email}`);
+      
+      // Verificar se já existe uma sessão antes do login
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        logDebug('Já existe uma sessão ativa, tentando fazer logout primeiro');
+        await supabase.auth.signOut();
+        logDebug('Logout realizado com sucesso');
+      }
+      
       // Login direto com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.senha,
       });
       
-      console.log('Resposta do Supabase:', data ? 'Data disponível' : 'Sem data', error ? `Erro: ${error.message}` : 'Sem erro');
-      
       if (error) {
+        logError('Erro na resposta do Supabase:', error);
         setLoginMessage({
           type: 'error',
           text: error.message || 'Erro ao fazer login. Verifique suas credenciais e tente novamente.'
@@ -145,25 +202,55 @@ function LoginContent() {
         return;
       }
       
-      // Se chegou aqui, login bem-sucedido
-      console.log('Login bem-sucedido, redirecionando...');
+      if (!data || !data.session) {
+        logError('Resposta do Supabase sem sessão');
+        setLoginMessage({
+          type: 'error',
+          text: 'Erro ao criar sessão. Por favor, tente novamente.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      // Verificar se a sessão foi criada corretamente
+      logDebug('Login bem-sucedido:', {
+        userId: data.user?.id,
+        sessionId: data.session?.access_token.substring(0, 10) + '...',
+      });
       
       // Redirecionar para o dashboard ou página solicitada
       const redirectTo = searchParams.get('redirect') || '/dashboard';
-      console.log('Redirecionando para:', redirectTo);
+      logDebug(`Redirecionando para: ${redirectTo}`);
       
       // Forçar redirecionamento com timeout para garantir que aconteça
       setTimeout(() => {
-        const fullRedirectUrl = redirectTo.startsWith('/') 
-          ? window.location.origin + redirectTo
-          : redirectTo;
+        try {
+          const fullRedirectUrl = redirectTo.startsWith('/') 
+            ? window.location.origin + redirectTo
+            : redirectTo;
+            
+          logDebug(`URL de redirecionamento completa: ${fullRedirectUrl}`);
           
-        console.log('URL de redirecionamento completa:', fullRedirectUrl);
-        window.location.replace(fullRedirectUrl);
-      }, 500);
+          // Tentar usar o router primeiro
+          try {
+            router.push(redirectTo);
+            logDebug('Navegação via router.push iniciada');
+          } catch (routerErr) {
+            logError('Erro ao usar router.push:', routerErr);
+            
+            // Fallback para location.replace se o router falhar
+            window.location.replace(fullRedirectUrl);
+            logDebug('Navegação via location.replace (fallback)');
+          }
+        } catch (navError) {
+          logError('Erro durante o redirecionamento:', navError);
+          // Último recurso: recarregar a página
+          window.location.reload();
+        }
+      }, 1000);
       
     } catch (error) {
-      console.error('Erro durante o login:', error);
+      logError('Erro durante o login:', error);
       
       let errorMessage = 'Erro ao fazer login. Verifique suas credenciais e tente novamente.';
       if (error instanceof Error) {
@@ -182,16 +269,24 @@ function LoginContent() {
   const acessarDemo = async () => {
     setIsLoading(true);
     try {
-      console.log('Iniciando login de demonstração...');
+      logDebug('Iniciando login de demonstração...');
+      
+      // Verificar se já existe uma sessão antes do login
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        logDebug('Já existe uma sessão ativa, tentando fazer logout primeiro');
+        await supabase.auth.signOut();
+        logDebug('Logout realizado com sucesso');
+      }
+      
       // Login direto com Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: 'demo@nmalls.com',
         password: 'demo123',
       });
       
-      console.log('Resposta do Supabase para demo:', data ? 'Data disponível' : 'Sem data', error ? `Erro: ${error.message}` : 'Sem erro');
-      
       if (error) {
+        logError('Erro na resposta do Supabase para demo:', error);
         setLoginMessage({
           type: 'error',
           text: error.message || 'Erro ao acessar modo demonstração.'
@@ -200,16 +295,46 @@ function LoginContent() {
         return;
       }
       
-      console.log('Login demo bem-sucedido, redirecionando...');
+      if (!data || !data.session) {
+        logError('Resposta do Supabase para demo sem sessão');
+        setLoginMessage({
+          type: 'error',
+          text: 'Erro ao criar sessão de demonstração. Por favor, tente novamente.'
+        });
+        setIsLoading(false);
+        return;
+      }
+      
+      logDebug('Login demo bem-sucedido:', {
+        userId: data.user?.id,
+        sessionId: data.session?.access_token.substring(0, 10) + '...',
+      });
       
       // Forçar redirecionamento usando timeout e location.replace
       setTimeout(() => {
-        const dashboardUrl = window.location.origin + '/dashboard';
-        console.log('Redirecionando para dashboard:', dashboardUrl);
-        window.location.replace(dashboardUrl);
-      }, 500);
+        try {
+          const dashboardUrl = window.location.origin + '/dashboard';
+          logDebug(`Redirecionando para dashboard: ${dashboardUrl}`);
+          
+          // Tentar usar o router primeiro
+          try {
+            router.push('/dashboard');
+            logDebug('Navegação demo via router.push iniciada');
+          } catch (routerErr) {
+            logError('Erro ao usar router.push para demo:', routerErr);
+            
+            // Fallback para location.replace se o router falhar
+            window.location.replace(dashboardUrl);
+            logDebug('Navegação demo via location.replace (fallback)');
+          }
+        } catch (navError) {
+          logError('Erro durante o redirecionamento demo:', navError);
+          // Último recurso: recarregar a página
+          window.location.reload();
+        }
+      }, 1000);
     } catch (error) {
-      console.error('Erro durante login demo:', error);
+      logError('Erro durante login demo:', error);
       setLoginMessage({
         type: 'error',
         text: 'Erro ao acessar modo demonstração.'
@@ -229,6 +354,8 @@ function LoginContent() {
               width={150} 
               height={50}
               className="h-12 w-auto"
+              onLoad={() => logDebug('Logo carregado com sucesso')}
+              onError={() => logError('Erro ao carregar logo')}
             />
           </div>
           <h2 className="text-2xl font-extrabold text-gray-900">
@@ -373,6 +500,11 @@ function LoginContent() {
 }
 
 export default function LoginPage() {
+  // Log quando a página é renderizada
+  useEffect(() => {
+    console.log('🔐 Página de login renderizada');
+  }, []);
+  
   return (
     <Suspense fallback={<div>Carregando...</div>}>
       <LoginContent />

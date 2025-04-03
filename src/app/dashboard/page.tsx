@@ -18,13 +18,44 @@ import {
 } from '@/utils/appRegistry';
 import Link from 'next/link';
 
+// Função de log melhorada para exibir no console
+const logDebug = (message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  if (data) {
+    console.log(`[${timestamp}] 📊 DASHBOARD DEBUG: ${message}`, data);
+  } else {
+    console.log(`[${timestamp}] 📊 DASHBOARD DEBUG: ${message}`);
+  }
+};
+
+// Função de log de erro melhorada
+const logError = (message: string, error?: any) => {
+  const timestamp = new Date().toISOString();
+  console.error(`[${timestamp}] ❌ DASHBOARD ERROR: ${message}`, error);
+};
+
 export default function DashboardPage() {
+  logDebug('Renderizando Dashboard');
+  
   const { profile } = useAuth();
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filteredModules, setFilteredModules] = useState(appModules);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  
+  // Log do perfil atual
+  useEffect(() => {
+    if (profile) {
+      logDebug('Perfil carregado:', { 
+        id: profile.id,
+        name: profile.name,
+        role: profile.role
+      });
+    } else {
+      logDebug('Perfil não disponível');
+    }
+  }, [profile]);
   
   // Tentar usar o contexto de favoritos com tratamento de erro
   let favorites: string[] = [];
@@ -34,24 +65,30 @@ export default function DashboardPage() {
   
   try {
     // Importação dinâmica do contexto de favoritos para evitar erros de renderização
+    logDebug('Tentando carregar contexto de favoritos');
     const { useFavorites } = require('@/contexts/FavoritesContext');
     const favoritesContext = useFavorites();
     favorites = favoritesContext.favorites || [];
     toggleFavorite = favoritesContext.toggleFavorite || (() => {});
     isFavorite = favoritesContext.isFavorite || (() => false);
     favoritesLoading = favoritesContext.isLoading || false;
+    
+    logDebug('Contexto de favoritos carregado com sucesso', { 
+      totalFavorites: favorites.length,
+      isLoading: favoritesLoading
+    });
   } catch (err) {
-    console.error('Erro ao carregar contexto de favoritos:', err);
+    logError('Erro ao carregar contexto de favoritos:', err);
     setError('Não foi possível carregar os favoritos. Tente recarregar a página.');
   }
 
   // Verificar se o contexto de favoritos está disponível
   useEffect(() => {
     try {
-      console.log('Verificando contexto de autenticação:', profile);
+      logDebug('Verificando contexto de autenticação:', profile);
       setIsLoading(false);
     } catch (err) {
-      console.error('Erro ao carregar dashboard:', err);
+      logError('Erro ao carregar dashboard:', err);
       setError('Erro ao carregar o dashboard. Tente recarregar a página.');
       setIsLoading(false);
     }
@@ -71,6 +108,7 @@ export default function DashboardPage() {
         module.description.toLowerCase().includes(lowercaseTerm)
     );
     
+    logDebug(`Pesquisa: ${searchTerm} - ${filtered.length} resultados`);
     setFilteredModules(filtered);
   }, [searchTerm]);
 
@@ -90,20 +128,23 @@ export default function DashboardPage() {
 
   const handleToggleFavorite = (id: string) => (e: React.MouseEvent) => {
     try {
+      logDebug(`Alterando favorito: ${id}`);
       toggleFavorite(id);
     } catch (err) {
-      console.error('Erro ao alternar favorito:', err);
+      logError('Erro ao alternar favorito:', err);
       setError('Não foi possível atualizar os favoritos.');
     }
   };
   
   // Função para mostrar o menu de um módulo
   const handleShowMenu = (moduleId: string) => () => {
+    logDebug(`Mostrando menu para: ${moduleId}`);
     setSelectedModule(moduleId);
   };
   
   // Função para fechar o menu
   const handleCloseMenu = () => {
+    logDebug('Fechando menu');
     setSelectedModule(null);
   };
   
@@ -113,6 +154,7 @@ export default function DashboardPage() {
 
   // Renderiza a versão antiga do dashboard em caso de erro
   if (error) {
+    logError('Renderizando dashboard com erro:', error);
     return (
       <ProtectedRoute>
         <div className="space-y-6">
@@ -133,6 +175,7 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
+    logDebug('Renderizando loading state do dashboard');
     return (
       <ProtectedRoute>
         <div className="h-screen flex items-center justify-center">
@@ -145,6 +188,7 @@ export default function DashboardPage() {
     );
   }
 
+  logDebug('Renderizando dashboard completo');
   return (
     <ProtectedRoute>
       <div className="container mx-auto pb-16 pt-4">
