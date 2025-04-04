@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { 
@@ -21,7 +21,8 @@ import {
   Database,
   PlusCircle,
   List,
-  AlertCircle
+  AlertCircle,
+  ChevronRight
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -29,7 +30,7 @@ import { supabase } from '@/lib/supabase';
 
 interface SidebarLinkProps {
   href: string;
-  icon: ReactNode;
+  icon: React.ReactNode;
   text: string;
   isActive: boolean;
   hasSubmenu?: boolean;
@@ -40,7 +41,7 @@ interface SidebarLinkProps {
 
 interface SidebarCategoryProps {
   title: string;
-  children: ReactNode;
+  children: React.ReactNode;
 }
 
 interface SidebarSubmenuProps {
@@ -48,8 +49,8 @@ interface SidebarSubmenuProps {
   isActive: boolean;
   isOpen: boolean;
   onClick: () => void;
-  icon: ReactNode;
-  children: ReactNode;
+  icon: React.ReactNode;
+  children: React.ReactNode;
   tooltip?: string;
 }
 
@@ -143,71 +144,121 @@ function SidebarSubmenu({ text, isActive, isOpen, onClick, icon, children, toolt
   );
 }
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+// Função de log melhorada
+const logger = {
+  debug: (message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    if (data) {
+      console.log(`[${timestamp}] 📋 DASHBOARD LAYOUT: ${message}`, data);
+    } else {
+      console.log(`[${timestamp}] 📋 DASHBOARD LAYOUT: ${message}`);
+    }
+  },
+  
+  error: (message: string, error?: any) => {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ❌ DASHBOARD LAYOUT ERROR: ${message}`, error);
+  }
+};
+
+export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
-  const { user, profile, loading, session } = useAuth();
+  const { user, profile, loading: authLoading, signOut } = useAuth();
   const [entregasSubmenuOpen, setEntregasSubmenuOpen] = useState(false);
   const [admSubmenuOpen, setAdmSubmenuOpen] = useState(false);
   const [modulosSubmenuOpen, setModulosSubmenuOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
+  const [layoutLoaded, setLayoutLoaded] = useState(false);
   
-  // Verificar autenticação
+  // Verificar a autenticação quando o componente carregar
   useEffect(() => {
     const checkAuth = async () => {
-      // Se o contexto de autenticação ainda estiver carregando, aguardamos
-      if (loading) {
-        console.log('Contexto de autenticação carregando, aguardando...');
-        return;
-      }
+      logger.debug('Verificando autenticação no layout do dashboard');
       
-      // Se já temos perfil, usuário ou sessão, permitir acesso
-      if (profile || user || session) {
-        console.log('Usuário autenticado, permitindo acesso ao dashboard');
-        return;
-      }
-      
-      // Verificar diretamente no Supabase se há uma sessão válida
       try {
+        // Verificar se temos sessão diretamente com o Supabase
         const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          console.log('Sessão encontrada diretamente no Supabase, permitindo acesso');
+        
+        if (!data.session) {
+          logger.debug('Sem sessão válida no layout do dashboard');
+          window.location.href = '/login?redirect=/dashboard';
           return;
         }
         
-        // Nenhuma sessão encontrada, redirecionar para login
-        console.log('Sem sessão válida, redirecionando para login');
-        // Evitar loop de redirecionamento definindo uma flag
-        const redirecting = sessionStorage.getItem('redirecting');
-        if (redirecting) {
-          console.log('Redirecionamento já em andamento, evitando loop');
-          return;
+        logger.debug('Sessão válida encontrada no layout do dashboard', { 
+          userId: data.session.user.id 
+        });
+        
+        // Aguardar até que o contexto de autenticação termine de carregar
+        if (!authLoading) {
+          setIsLoading(false);
+          setLayoutLoaded(true);
         }
-        
-        sessionStorage.setItem('redirecting', 'true');
-        setTimeout(() => {
-          sessionStorage.removeItem('redirecting');
-        }, 5000); // Limpar a flag após 5 segundos
-        
-        // Redirecionar para a página de login com o caminho atual como redirecionamento
-        const currentPath = window.location.pathname;
-        const loginUrl = `/login?redirect=${encodeURIComponent(currentPath)}`;
-        
-        // Fazer o redirecionamento de forma direta para evitar problemas
-        window.location.href = loginUrl;
-      } catch (err) {
-        console.error('Erro ao verificar autenticação:', err);
-        // Em caso de erro, é mais seguro redirecionar para login
-        window.location.href = '/login';
+      } catch (error) {
+        logger.error('Erro ao verificar autenticação no layout:', error);
+        setIsLoading(false);
       }
     };
     
     checkAuth();
-  }, [loading, profile, user, session]);
+  }, [authLoading]);
+  
+  // Toggle do menu lateral
+  const toggleSidebar = () => {
+    setSidebarOpen(!sidebarOpen);
+    logger.debug(`Sidebar ${!sidebarOpen ? 'aberta' : 'fechada'}`);
+  };
+  
+  // Toggle do menu do perfil
+  const toggleProfileMenu = () => {
+    setProfileMenuOpen(!profileMenuOpen);
+    logger.debug(`Menu do perfil ${!profileMenuOpen ? 'aberto' : 'fechado'}`);
+  };
+  
+  // Função para fazer logout
+  let signOutHandler = async () => {
+    logger.debug('Iniciando logout');
+    try {
+      if (signOut) {
+        await signOut();
+        logger.debug('Logout realizado com sucesso');
+      } else {
+        // Fallback se a função signOut não estiver disponível
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+        window.location.href = '/login';
+      }
+    } catch (error) {
+      logger.error('Erro ao fazer logout:', error);
+    }
+  };
+  
+  // Verifica se a rota atual está ativa
+  const isActive = (path: string) => {
+    return pathname === path || pathname?.startsWith(path + '/');
+  };
+  
+  // Estado de carregamento
+  if (isLoading) {
+    logger.debug('Renderizando estado de carregamento do layout');
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <h2 className="text-xl font-semibold text-gray-700 mb-3">Nmalls</h2>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-gray-500 mt-4">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+  
+  logger.debug('Renderizando layout completo do dashboard', { layoutLoaded });
   
   // Se estiver carregando, mostrar um loader
   if (loading) {
@@ -234,17 +285,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [avisosSubmenuOpen, setAvisosSubmenuOpen] = useState(false);
   const [logsSubmenuOpen, setLogsSubmenuOpen] = useState(false);
   
-  // Usar try/catch para evitar erros ao acessar o contexto
-  let signOut = () => {};
-  
-  try {
-    const auth = useAuth();
-    signOut = auth.signOut;
-  } catch (err) {
-    console.error('Erro ao acessar contexto de autenticação:', err);
-    setError('Erro ao carregar dados do usuário');
-  }
-
   // Registrar handler para erros não capturados
   useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -255,13 +295,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     window.addEventListener('error', handleError);
     return () => window.removeEventListener('error', handleError);
   }, []);
-
-  const toggleSidebar = () => {
-    setSidebarOpen(!sidebarOpen);
-  };
-
-  const isActive = (path: string) => pathname === path;
-  const isActiveParent = (pathPrefix: string) => pathname.startsWith(pathPrefix);
 
   // Links do menu lateral
   const links = [
@@ -384,7 +417,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarCategory title="Operações">
             <SidebarSubmenu
               text="Entregas"
-              isActive={isActiveParent('/dashboard/entregas')}
+              isActive={isActive('/dashboard/entregas')}
               isOpen={entregasSubmenuOpen}
               onClick={() => setEntregasSubmenuOpen(!entregasSubmenuOpen)}
               icon={<Truck />}
@@ -412,7 +445,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
             <SidebarSubmenu
               text="Devoluções"
-              isActive={isActiveParent('/dashboard/devolucoes')}
+              isActive={isActive('/dashboard/devolucoes')}
               isOpen={devolucoesSubmenuOpen}
               onClick={() => setDevolucoesSubmenuOpen(!devolucoesSubmenuOpen)}
               icon={<Repeat />}
@@ -434,7 +467,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Trocas Entre Lojas"
-              isActive={isActiveParent('/dashboard/trocas')}
+              isActive={isActive('/dashboard/trocas')}
               isOpen={trocasSubmenuOpen}
               onClick={() => setTrocasSubmenuOpen(!trocasSubmenuOpen)}
               icon={<Store />}
@@ -456,7 +489,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Sugestões de Compras"
-              isActive={isActiveParent('/dashboard/sugestoes')}
+              isActive={isActive('/dashboard/sugestoes')}
               isOpen={sugestoesSubmenuOpen}
               onClick={() => setSugestoesSubmenuOpen(!sugestoesSubmenuOpen)}
               icon={<ShoppingCart />}
@@ -478,7 +511,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Recorrências"
-              isActive={isActiveParent('/dashboard/recorrencias')}
+              isActive={isActive('/dashboard/recorrencias')}
               isOpen={recorrenciasSubmenuOpen}
               onClick={() => setRecorrenciasSubmenuOpen(!recorrenciasSubmenuOpen)}
               icon={<RefreshCw />}
@@ -503,7 +536,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarCategory title="Gestão">
             <SidebarSubmenu
               text="CRM"
-              isActive={isActiveParent('/dashboard/crm')}
+              isActive={isActive('/dashboard/crm')}
               isOpen={crmSubmenuOpen}
               onClick={() => setCrmSubmenuOpen(!crmSubmenuOpen)}
               icon={<PhoneCall />}
@@ -525,7 +558,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Medicamentos"
-              isActive={isActiveParent('/dashboard/medicamentos')}
+              isActive={isActive('/dashboard/medicamentos')}
               isOpen={medicamentosSubmenuOpen}
               onClick={() => setMedicamentosSubmenuOpen(!medicamentosSubmenuOpen)}
               icon={<Pill />}
@@ -544,7 +577,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarCategory title="Financeiro">
             <SidebarSubmenu
               text="Reembolsos"
-              isActive={isActiveParent('/dashboard/reembolsos')}
+              isActive={isActive('/dashboard/reembolsos')}
               isOpen={reembolsosSubmenuOpen}
               onClick={() => setReembolsosSubmenuOpen(!reembolsosSubmenuOpen)}
               icon={<DollarSign />}
@@ -569,7 +602,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarCategory title="Administração">
             <SidebarSubmenu
               text="Usuários"
-              isActive={isActiveParent('/dashboard/usuarios')}
+              isActive={isActive('/dashboard/usuarios')}
               isOpen={usuariosSubmenuOpen}
               onClick={() => setUsuariosSubmenuOpen(!usuariosSubmenuOpen)}
               icon={<Users />}
@@ -591,7 +624,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Logs do Sistema"
-              isActive={isActiveParent('/dashboard/logs')}
+              isActive={isActive('/dashboard/logs')}
               isOpen={logsSubmenuOpen}
               onClick={() => setLogsSubmenuOpen(!logsSubmenuOpen)}
               icon={<Database />}
@@ -616,7 +649,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <SidebarCategory title="Sistema">
             <SidebarSubmenu
               text="Notificações"
-              isActive={isActiveParent('/dashboard/avisos')}
+              isActive={isActive('/dashboard/avisos')}
               isOpen={avisosSubmenuOpen}
               onClick={() => setAvisosSubmenuOpen(!avisosSubmenuOpen)}
               icon={<BellRing />}
@@ -638,7 +671,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
             <SidebarSubmenu
               text="Configurações"
-              isActive={isActiveParent('/dashboard/configuracoes')}
+              isActive={isActive('/dashboard/configuracoes')}
               isOpen={configuracoesSubmenuOpen}
               onClick={() => setConfiguracoesSubmenuOpen(!configuracoesSubmenuOpen)}
               icon={<Settings />}
@@ -654,7 +687,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             
             <SidebarSubmenu
               text="Ajuda"
-              isActive={isActiveParent('/dashboard/ajuda')}
+              isActive={isActive('/dashboard/ajuda')}
               isOpen={ajudaSubmenuOpen}
               onClick={() => setAjudaSubmenuOpen(!ajudaSubmenuOpen)}
               icon={<HelpCircle />}
@@ -687,7 +720,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             Logado como: <span className="font-medium">{profile?.role || 'Não autenticado'}</span>
           </div>
           <button
-            onClick={signOut}
+            onClick={signOutHandler}
             className="flex items-center w-full p-3 text-sm text-red-600 rounded-lg hover:bg-red-50"
           >
             <LogOut className="w-6 h-6 mr-2" />
@@ -712,7 +745,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-auto p-4">
-          {children}
+          {layoutLoaded ? children : (
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
+                <p className="text-gray-500 mt-4">Inicializando conteúdo...</p>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>
