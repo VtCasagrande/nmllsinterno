@@ -4,7 +4,8 @@ repository:
   url: https://github.com/VtCasagrande/nmllsinterno.git
   branch: main
 autoDeploy: true
-buildCommand: chmod +x deploy.sh && ./deploy.sh
+buildCommand: npm install && npm run build
+startCommand: npm run start
 ports:
   - port: 3000
     type: HTTP
