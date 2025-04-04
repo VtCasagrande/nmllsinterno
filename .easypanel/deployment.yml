@@ -1,0 +1,20 @@
+name: nmallsinterno
+type: nodejs
+repository:
+  url: https://github.com/VtCasagrande/nmllsinterno.git
+  branch: main
+autoDeploy: true
+buildCommand: chmod +x deploy.sh && ./deploy.sh
+ports:
+  - port: 3000
+    type: HTTP
+    public: true
+env:
+  NEXT_PUBLIC_SUPABASE_URL: https://rnqdwjslfoxtdchxzgfr.supabase.co
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI
+  NEXT_PUBLIC_STORAGE_DEVOLUCOES_BUCKET: devolucoes
+  NEXT_PUBLIC_STORAGE_PROFILE_BUCKET: profile-images
+  NEXT_PUBLIC_STORAGE_BUCKET: nmalls-storage
+  NEXT_PUBLIC_APP_URL: https://nmallsinterno-nmallsinterno.op6qrj.easypanel.host/
+  NEXT_PUBLIC_API_URL: https://nmallsinterno-nmallsinterno.op6qrj.easypanel.host/api
+  NODE_ENV: production 
