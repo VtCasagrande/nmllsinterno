@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
 
 // Função de log melhorada para exibir no console
 const logDebug = (message: string, data?: any) => {
@@ -34,29 +33,20 @@ function LoginContent() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
-  const [supabaseDetails, setSupabaseDetails] = useState<{
-    url: string | null;
-    key: string | null;
-  }>({
-    url: null,
-    key: null
-  });
   
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signIn } = useAuth();
+  const { signIn, isAuthenticated, hasProfile } = useAuth();
   
   // Verificar ambiente e configurações
   useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://rnqdwjslfoxtdchxzgfr.supabase.co';
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJucWR3anNsZm94dGRjaHh6Z2ZyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM0MjYwNDUsImV4cCI6MjA1OTAwMjA0NX0.xsvV72Gb8GVFcLMdMBwjn93WXZdXxNvS3ozfrgrnpbI';
+    logDebug('Inicialização do componente de login');
     
-    logDebug('Inicialização do componente de login', { url });
-    
-    setSupabaseDetails({
-      url: url,
-      key: key ? key.substring(0, 10) + '...' : key
-    });
+    // Verificar se já está autenticado
+    if (isAuthenticated && hasProfile) {
+      logDebug('Usuário já autenticado, redirecionando para dashboard');
+      // O redirecionamento será tratado pelo AuthContext
+    }
     
     // Verifica se há parâmetros de redirect
     const redirect = searchParams.get('redirect');
@@ -81,7 +71,7 @@ function LoginContent() {
         text: decodeURIComponent(success)
       });
     }
-  }, [searchParams]);
+  }, [searchParams, isAuthenticated, hasProfile]);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -119,6 +109,12 @@ function LoginContent() {
   
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validar formulário antes de prosseguir
+    if (!validarFormulario()) {
+      return;
+    }
+    
     setIsLoading(true);
     setLoginMessage(null);
     
@@ -127,11 +123,8 @@ function LoginContent() {
       const result = await signIn(formData.email, formData.senha);
       
       if (result.success) {
-        logDebug('Login bem-sucedido, aguardando AuthContext processar o redirecionamento');
-        
-        // Deixamos o redirecionamento para o AuthContext fazer
-        // Apenas mantemos o isLoading para mostrar o estado de carregamento
-        // Não vamos forçar redirecionamentos daqui para evitar conflitos
+        logDebug('Login bem-sucedido, aguardando redirecionamento pelo AuthContext');
+        // O redirecionamento será feito pelo AuthContext
       } else {
         setLoginMessage({
           type: 'error',
@@ -149,9 +142,9 @@ function LoginContent() {
     }
   };
   
-  // Função para acessar dashboard diretamente
+  // Função para acessar dashboard diretamente em ambiente de desenvolvimento
   const acessarDashboardDiretamente = () => {
-    // Adicionar parâmetros para contornar verificações de autenticação
+    // Parâmetros para contornar verificações de autenticação
     window.location.href = '/dashboard?_auth_bypass=true&_direct_access=true';
   };
   
@@ -257,16 +250,18 @@ function LoginContent() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                isLoading ? 'opacity-70 cursor-not-allowed' : ''
+              }`}
             >
               {isLoading ? (
-                <span className="flex items-center">
+                <>
                   <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Processando...
-                </span>
+                  Entrando...
+                </>
               ) : (
                 'Entrar'
               )}
@@ -274,34 +269,33 @@ function LoginContent() {
           </div>
         </form>
         
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={acessarDashboardDiretamente}
-            className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Acessar Dashboard Diretamente
-          </button>
-        </div>
-        
-        <div className="mt-6">
-          <p className="text-center text-xs text-gray-500">
-            Novo em nosso sistema? <Link href="#" className="font-medium text-blue-600 hover:text-blue-500">Solicite seu acesso</Link>
-          </p>
-        </div>
+        {process.env.NODE_ENV === 'development' && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <p className="text-xs text-gray-500 mb-2">Opções de desenvolvimento:</p>
+            <button
+              type="button"
+              onClick={acessarDashboardDiretamente}
+              className="w-full text-xs py-1 px-2 border border-gray-300 rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              Acessar dashboard (bypass auth)
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
+// Envolvendo o conteúdo em um Suspense para melhor handling de carregamento
+import { Suspense } from 'react';
+
 export default function LoginPage() {
-  // Log quando a página é renderizada
-  useEffect(() => {
-    logDebug('Página de login renderizada');
-  }, []);
-  
   return (
-    <Suspense fallback={<div>Carregando...</div>}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    }>
       <LoginContent />
     </Suspense>
   );
