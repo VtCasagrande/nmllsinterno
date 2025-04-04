@@ -3,14 +3,15 @@
 import React from 'react';
 import Link from 'next/link';
 import { X } from 'lucide-react';
+import { AppAction } from '@/utils/appRegistry';
 
 interface AppMenuAction {
   id: string;
   name: string;
   href: string;
   description?: string;
-  icon: any;
-  color: string;
+  icon?: any;
+  color?: string;
 }
 
 interface AppMenuProps {
@@ -18,7 +19,7 @@ interface AppMenuProps {
   onClose: () => void;
   title: string;
   moduleId: string;
-  actions: AppMenuAction[];
+  actions: AppAction[];
   mainHref: string;
 }
 
@@ -51,24 +52,28 @@ export default function AppMenu({ isOpen, onClose, title, actions, mainHref }: A
           
           <div className="space-y-2">
             <h4 className="text-sm font-medium text-gray-500 mb-2">Ações disponíveis:</h4>
-            {actions.map(action => (
-              <Link
-                key={action.id}
-                href={action.href}
-                className="flex items-center p-3 rounded-md hover:bg-gray-100 transition-colors"
-                onClick={onClose}
-              >
-                <div className={`p-2 rounded-md mr-3 ${action.color} text-white`}>
-                  <action.icon className="h-4 w-4" />
-                </div>
-                <div>
-                  <div className="font-medium">{action.name}</div>
-                  {action.description && (
-                    <div className="text-sm text-gray-500">{action.description}</div>
-                  )}
-                </div>
-              </Link>
-            ))}
+            {actions.map(action => {
+              const Icon = action.icon || (() => <div className="w-4 h-4 bg-current rounded-full" />);
+              
+              return (
+                <Link
+                  key={action.id}
+                  href={action.href}
+                  className="flex items-center p-3 rounded-md hover:bg-gray-100 transition-colors"
+                  onClick={onClose}
+                >
+                  <div className={`p-2 rounded-md mr-3 ${action.color || 'bg-gray-500'} text-white`}>
+                    <Icon className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <div className="font-medium">{action.name}</div>
+                    {action.description && (
+                      <div className="text-sm text-gray-500">{action.description}</div>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
