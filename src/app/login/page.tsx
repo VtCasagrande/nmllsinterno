@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Suspense } from 'react';
+import { supabase } from '@/lib/supabase';
+import { AuthError } from '@supabase/supabase-js';
 
 // Componentes e ícones
 const LoadingSpinner = () => (
@@ -191,6 +193,30 @@ function LoginContent() {
     window.location.href = '/dashboard?_auth_bypass=true&_direct_access=true';
   };
   
+  // Função para limpar o estado de autenticação e tentar novamente
+  const resetAuthAndTryAgain = () => {
+    logger.debug('Limpando estado de autenticação e cookies');
+    
+    // Limpar cookies de autenticação
+    document.cookie.split(';').forEach(cookie => {
+      const [name] = cookie.trim().split('=');
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    });
+    
+    // Forçar logout no Supabase
+    supabase.auth.signOut().then(() => {
+      logger.debug('Logout forçado realizado');
+      
+      // Recarregar a página sem parâmetros de redirecionamento
+      setTimeout(() => {
+        window.location.href = '/login?reset=true';
+      }, 500);
+    }).catch((error: AuthError | any) => {
+      logger.error('Erro ao fazer logout forçado', error);
+      window.location.href = '/login?reset=true';
+    });
+  };
+  
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
       {/* Seção de imagem/branding */}
@@ -326,6 +352,16 @@ function LoginContent() {
               ) : 'Entrar'}
             </button>
           </form>
+          
+          {/* Opção para resolver problemas de login */}
+          <div className="mt-6 text-center">
+            <button 
+              onClick={resetAuthAndTryAgain}
+              className="text-sm text-blue-600 hover:text-blue-800"
+            >
+              Problemas para entrar? Limpar dados de autenticação
+            </button>
+          </div>
           
           {process.env.NODE_ENV === 'development' && (
             <div className="mt-8 pt-6 border-t border-gray-200">
