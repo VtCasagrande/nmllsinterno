@@ -165,11 +165,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
               const separator = redirectPath.includes('?') ? '&' : '?';
               const finalPath = `${redirectPath}${separator}_auth_verified=true`;
               
-              // Usar router.push com delay maior para dar tempo aos cookies
-              setTimeout(() => {
-                logDebug('Executando redirecionamento via router.push após delay');
-                router.push(finalPath);
-              }, 500); // Aumentado para 500ms para garantir persistência de cookies
+              // Usar window.location.href para forçar um refresh completo e garantir que os cookies sejam aplicados
+              logDebug('Executando redirecionamento via window.location.href para garantir refresh completo');
+              window.location.href = finalPath;
             } else {
               logError('Inconsistência detectada: isAuthenticated=true mas não há sessão no Supabase');
               setIsAuthenticated(false);

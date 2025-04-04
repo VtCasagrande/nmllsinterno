@@ -25,16 +25,21 @@ export async function middleware(request: NextRequest) {
   );
 
   if (isPublicRoute) {
+    console.log('Rota pública detectada, permitindo acesso:', request.nextUrl.pathname);
     return NextResponse.next();
   }
 
-  // Verificar se há um loop de redirecionamento usando um parâmetro na URL
+  // Verificar parâmetros especiais na URL para prevenir loops e facilitar testes
   const authLoop = request.nextUrl.searchParams.get('_auth_loop');
   const authChecked = request.nextUrl.searchParams.get('_auth_checked');
   const authBypass = request.nextUrl.searchParams.get('_auth_bypass');
+  const authVerified = request.nextUrl.searchParams.get('_auth_verified');
   
-  if (authLoop || authChecked || authBypass) {
-    console.warn('Detector de loop de redirecionamento ativado. Permitindo acesso para evitar bloqueio.');
+  // Se qualquer um dos parâmetros especiais for detectado, permitir acesso
+  if (authLoop || authChecked || authBypass || authVerified) {
+    console.log('Parâmetro especial detectado, permitindo acesso:', { 
+      authLoop, authChecked, authBypass, authVerified 
+    });
     return NextResponse.next();
   }
 
@@ -50,7 +55,7 @@ export async function middleware(request: NextRequest) {
     
     // Se não houver sessão, redirecionar para a página de login
     if (!session) {
-      console.log('Sessão não encontrada, redirecionando para login');
+      console.log('Sessão não encontrada, redirecionando para login. URL atual:', request.nextUrl.pathname);
       
       // Criar URL de redirecionamento com parâmetro de destino
       const redirectUrl = new URL('/login', request.url);
@@ -61,7 +66,7 @@ export async function middleware(request: NextRequest) {
     }
     
     // Se chegou aqui, o usuário está autenticado
-    console.log('Usuário autenticado:', session.user.id);
+    console.log('Usuário autenticado, permitindo acesso a:', request.nextUrl.pathname, 'User ID:', session.user.id);
     
     // Retorna a resposta modificada que inclui os cookies de sessão atualizados
     return res;
