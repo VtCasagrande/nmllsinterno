@@ -140,48 +140,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const isLoginPage = pathname?.includes('/login');
       const isRedirectPage = pathname?.includes('/redirect-to-dashboard');
       
-      // Obter o destino de redirecionamento da URL se disponível
-      let redirectPath = '/dashboard';
-      if (isLoginPage && typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirectParam = urlParams.get('redirect');
-        if (redirectParam && redirectParam !== '/login' && !redirectParam.includes('_auth_loop') && !redirectParam.includes('_auth_checked')) {
-          redirectPath = redirectParam;
-        }
-      }
-      
-      // Redirecionar para o dashboard ou destino especificado
+      // Redirecionar após login
       if (isLoginPage) {
-        // Verificação adicional para garantir que os dados de autenticação estão consistentes
-        const doubleCheckAuth = async () => {
-          try {
-            // Verificar a sessão do Supabase antes de redirecionar
-            const { data } = await supabase.auth.getSession();
-            
-            if (data.session) {
-              logDebug(`Usuário verificado como autenticado, redirecionando para: ${redirectPath}`);
-              
-              // Adicionar um parâmetro para evitar loops
-              const separator = redirectPath.includes('?') ? '&' : '?';
-              const finalPath = `${redirectPath}${separator}_auth_verified=true`;
-              
-              // Usar window.location.href para forçar um refresh completo e garantir que os cookies sejam aplicados
-              logDebug('Executando redirecionamento via window.location.href para garantir refresh completo');
-              window.location.href = finalPath;
-            } else {
-              logError('Inconsistência detectada: isAuthenticated=true mas não há sessão no Supabase');
-              setIsAuthenticated(false);
-              setHasProfile(false);
-            }
-          } catch (error) {
-            logError('Erro ao verificar sessão antes de redirecionar:', error);
-          }
-        };
+        logDebug('Usuário autenticado na página de login, iniciando redirecionamento');
         
-        doubleCheckAuth();
+        // Obter o destino de redirecionamento da URL se disponível
+        let redirectPath = '/dashboard';
+        
+        try {
+          if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const redirectParam = urlParams.get('redirect');
+            
+            if (redirectParam && 
+                redirectParam !== '/login' && 
+                !redirectParam.includes('_auth_loop') && 
+                !redirectParam.includes('_auth_checked')) {
+              redirectPath = redirectParam;
+              logDebug(`Usando caminho de redirecionamento personalizado: ${redirectPath}`);
+            }
+          }
+        } catch (error) {
+          logError('Erro ao processar parâmetros de redirecionamento:', error);
+        }
+        
+        // Forçar um redirecionamento sem verificação dupla
+        logDebug(`Redirecionando após login para: ${redirectPath}`);
+        
+        // Redirecionamento direto com window.location para garantir que os cookies sejam aplicados
+        // e adicionar um parâmetro para evitar loops
+        const separator = redirectPath.includes('?') ? '&' : '?';
+        const finalPath = `${redirectPath}${separator}_auth_verified=true`;
+        
+        setTimeout(() => {
+          window.location.href = finalPath;
+        }, 500); // Pequeno atraso para garantir que os cookies sejam sincronizados
       }
     }
-  }, [loading, isAuthenticated, hasProfile, pathname, router]);
+  }, [loading, isAuthenticated, hasProfile, pathname]);
 
   // Inicializar a autenticação e ouvir mudanças de sessão
   useEffect(() => {
