@@ -1,17 +1,25 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import {
-  BarChart,
-  ChevronRight,
-  DollarSign,
-  Package,
-  ShoppingCart,
-  Truck,
-  Users,
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, User, Bell, Menu, AlertCircle, Plus, ChevronRight } from 'lucide-react';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { useAuth } from '@/contexts/AuthContext';
+import { useFavorites } from '@/contexts/FavoritesContext';
+import { AppIcon } from '@/components/AppIcon';
+import { AppCategory } from '@/components/AppCategory';
+import AppMenu from '@/components/AppMenu';
+import { 
+  appModules, 
+  appCategories, 
+  getModulesByCategory, 
+  filterModulesByRole,
+  getModuleActions,
+  getModuleById
+} from '@/utils/appRegistry';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
-// Função de log para debug
+// Função de log melhorada para exibir no console
 const logger = {
   debug: (message: string, data?: any) => {
     const timestamp = new Date().toISOString();
@@ -27,12 +35,23 @@ const logger = {
   }
 };
 
-export default function Dashboard() {
-  const [isLoading, setIsLoading] = useState(true);
+export default function DashboardPage() {
+  logger.debug('Renderizando Dashboard');
 
+  // Hooks e estado
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { profile, loading: authLoading } = useAuth();
+  const { favorites, toggleFavorite } = useFavorites();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filteredModules, setFilteredModules] = useState(appModules);
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  const router = useRouter();
+
+  // Inicializar o dashboard
   useEffect(() => {
-    // Simular carregamento de dados
-    logger.debug('Inicializando dashboard');
+    // Modo simplificado: apenas carregar o dashboard sem verificações complexas
+    logger.debug('Inicializando dashboard em modo simplificado');
     
     setTimeout(() => {
       setIsLoading(false);
@@ -40,167 +59,177 @@ export default function Dashboard() {
     }, 500);
   }, []);
 
-  // Estado de carregamento
-  if (isLoading) {
+  // Filtra os módulos quando o termo de busca muda
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredModules(appModules);
+      return;
+    }
+
+    const lowercaseTerm = searchTerm.toLowerCase();
+    const filtered = appModules.filter(
+      module => 
+        module.name.toLowerCase().includes(lowercaseTerm) || 
+        module.description.toLowerCase().includes(lowercaseTerm)
+    );
+    
+    logger.debug(`Pesquisa: ${searchTerm} - ${filtered.length} resultados`);
+    setFilteredModules(filtered);
+  }, [searchTerm]);
+
+  // Filtra os favoritos baseado na role do usuário
+  const userFavorites = filterModulesByRole(
+    appModules.filter(module => favorites.includes(module.id)),
+    profile?.role
+  );
+
+  // Filtra os módulos por categoria e role
+  const getAccessibleModulesByCategory = (categoryId: string) => {
+    return filterModulesByRole(
+      getModulesByCategory(categoryId),
+      profile?.role
+    );
+  };
+
+  const handleToggleFavorite = (id: string) => (e: React.MouseEvent) => {
+    try {
+      logger.debug(`Alterando favorito: ${id}`);
+      toggleFavorite(id);
+    } catch (err) {
+      logger.error('Erro ao alternar favorito:', err);
+      setError('Não foi possível atualizar os favoritos.');
+    }
+  };
+  
+  // Função para mostrar o menu de um módulo
+  const handleShowMenu = (moduleId: string) => () => {
+    logger.debug(`Mostrando menu para: ${moduleId}`);
+    setSelectedModule(moduleId);
+  };
+  
+  // Função para fechar o menu
+  const handleCloseMenu = () => {
+    logger.debug('Fechando menu');
+    setSelectedModule(null);
+  };
+  
+  // Obter o módulo selecionado e suas ações
+  const selectedModuleData = selectedModule ? getModuleById(selectedModule) : null;
+  const selectedModuleActions = selectedModuleData?.actions || [];
+
+  // Renderiza a versão antiga do dashboard em caso de erro
+  if (error) {
+    logger.error('Renderizando dashboard com erro:', error);
     return (
-      <div className="flex items-center justify-center min-h-full">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      <div className="space-y-6">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
+          <div className="flex items-center">
+            <AlertCircle className="text-red-500 mr-2" />
+            <p className="text-red-700">Erro ao carregar a interface: {error}</p>
+          </div>
+          <p className="text-sm text-red-600 mt-1">Mostrando interface alternativa.</p>
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <p className="text-gray-500 mt-1">Bem-vindo ao sistema de gestão da Nmalls</p>
+        </div>
       </div>
     );
   }
 
+  if (isLoading) {
+    logger.debug('Renderizando loading state do dashboard');
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  logger.debug('Renderizando dashboard completo');
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Painel de Controle</h1>
-        <div className="flex space-x-2">
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            Exportar Relatório
-          </button>
-        </div>
+    <div className="space-y-8">
+      {/* Mensagem de boas-vindas e cabeçalho */}
+      <div>
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <p className="text-gray-500 mt-1">
+          {profile?.name 
+            ? `Bem-vindo, ${profile.name}`
+            : 'Bem-vindo ao sistema de gestão da Nmalls'}
+        </p>
       </div>
 
-      {/* Cartões de estatísticas */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Vendas */}
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Vendas do Mês</p>
-              <h3 className="text-2xl font-bold mt-1">R$ 24.780,00</h3>
-              <p className="text-sm text-green-600 flex items-center mt-1">
-                <span>+12% </span>
-                <span className="ml-1 text-gray-500">vs. mês anterior</span>
-              </p>
-            </div>
-            <div className="bg-blue-100 p-3 rounded-full">
-              <DollarSign className="h-6 w-6 text-blue-700" />
-            </div>
-          </div>
+      {/* Barra de pesquisa */}
+      <div className="relative">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <Search className="h-5 w-5 text-gray-400" />
         </div>
-
-        {/* Pedidos */}
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Pedidos Novos</p>
-              <h3 className="text-2xl font-bold mt-1">132</h3>
-              <p className="text-sm text-red-600 flex items-center mt-1">
-                <span>-3% </span>
-                <span className="ml-1 text-gray-500">vs. mês anterior</span>
-              </p>
-            </div>
-            <div className="bg-purple-100 p-3 rounded-full">
-              <ShoppingCart className="h-6 w-6 text-purple-700" />
-            </div>
-          </div>
-        </div>
-
-        {/* Entregas */}
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Entregas Pendentes</p>
-              <h3 className="text-2xl font-bold mt-1">28</h3>
-              <p className="text-sm text-green-600 flex items-center mt-1">
-                <span>+4% </span>
-                <span className="ml-1 text-gray-500">vs. semana anterior</span>
-              </p>
-            </div>
-            <div className="bg-orange-100 p-3 rounded-full">
-              <Truck className="h-6 w-6 text-orange-700" />
-            </div>
-          </div>
-        </div>
-
-        {/* Novos Clientes */}
-        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-sm text-gray-500">Novos Clientes</p>
-              <h3 className="text-2xl font-bold mt-1">48</h3>
-              <p className="text-sm text-green-600 flex items-center mt-1">
-                <span>+8% </span>
-                <span className="ml-1 text-gray-500">vs. mês anterior</span>
-              </p>
-            </div>
-            <div className="bg-green-100 p-3 rounded-full">
-              <Users className="h-6 w-6 text-green-700" />
-            </div>
-          </div>
-        </div>
+        <input
+          type="text"
+          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+          placeholder="Buscar aplicativos e recursos..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
-      {/* Atividades Recentes e Pedidos Recentes */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Gráfico simplificado */}
-        <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-lg font-medium">Visão Geral de Vendas</h3>
-            <div className="flex items-center text-sm text-blue-600">
-              <button className="flex items-center">
-                Ver mais <ChevronRight className="h-4 w-4 ml-1" />
-              </button>
+      {/* Favoritos */}
+      {userFavorites.length > 0 && (
+        <AppCategory title="Favoritos" className="mb-6">
+          {userFavorites.map(module => (
+            <div key={module.id} className="relative">
+              <AppIcon
+                href={module.href}
+                icon={module.icon}
+                label={module.name}
+                color={module.color}
+                isFavorite={true}
+                onToggleFavorite={handleToggleFavorite(module.id)}
+                showMenu={handleShowMenu(module.id)}
+              />
             </div>
-          </div>
-          <div className="flex items-center justify-center h-64 border-b pb-4">
-            <div className="flex items-end space-x-2 h-full w-full px-4">
-              {[60, 40, 75, 90, 30, 80, 95, 50, 65, 72, 85].map((height, index) => (
-                <div 
-                  key={index}
-                  className="bg-blue-500 rounded-t w-full"
-                  style={{ height: `${height}%` }}
-                ></div>
-              ))}
-            </div>
-          </div>
-          <div className="flex justify-between pt-4 text-sm text-gray-500">
-            <span>Janeiro</span>
-            <span>Fevereiro</span>
-            <span>Março</span>
-            <span>Abril</span>
-            <span>Maio</span>
-            <span>Junho</span>
-          </div>
-        </div>
+          ))}
+        </AppCategory>
+      )}
 
-        {/* Pedidos Recentes */}
-        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
-          <div className="p-6 border-b">
-            <div className="flex justify-between items-center">
-              <h3 className="text-lg font-medium">Pedidos Recentes</h3>
-              <div className="flex items-center text-sm text-blue-600">
-                <button className="flex items-center">
-                  Ver todos <ChevronRight className="h-4 w-4 ml-1" />
-                </button>
-              </div>
-            </div>
-          </div>
-          <div className="divide-y">
-            {[1, 2, 3, 4, 5].map(index => (
-              <div key={index} className="p-4 hover:bg-gray-50">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-gray-100 p-2 rounded">
-                    <Package className="h-6 w-6 text-gray-500" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      Pedido #{Math.floor(Math.random() * 10000)}
-                    </p>
-                    <p className="text-sm text-gray-500 truncate">
-                      Cliente: João Silva
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-medium text-gray-900">R$ {(Math.random() * 1000).toFixed(2)}</p>
-                    <p className="text-sm text-gray-500">Hoje</p>
-                  </div>
-                </div>
+      {/* Seções por categoria */}
+      {appCategories.map(category => {
+        const categoryModules = getAccessibleModulesByCategory(category.id);
+        if (categoryModules.length === 0) return null;
+        
+        return (
+          <AppCategory key={category.id} title={category.name} className="mb-6">
+            {categoryModules.map(module => (
+              <div key={module.id} className="relative">
+                <AppIcon
+                  href={module.href}
+                  icon={module.icon}
+                  label={module.name}
+                  color={module.color}
+                  isFavorite={favorites.includes(module.id)}
+                  onToggleFavorite={handleToggleFavorite(module.id)}
+                  showMenu={handleShowMenu(module.id)}
+                />
               </div>
             ))}
-          </div>
-        </div>
-      </div>
+          </AppCategory>
+        );
+      })}
+      
+      {/* Menu popup para ações do módulo */}
+      {selectedModuleData && (
+        <AppMenu
+          isOpen={!!selectedModule}
+          onClose={handleCloseMenu}
+          title={selectedModuleData.name}
+          moduleId={selectedModuleData.id}
+          actions={selectedModuleActions}
+          mainHref={selectedModuleData.href}
+        />
+      )}
     </div>
   );
 } 
