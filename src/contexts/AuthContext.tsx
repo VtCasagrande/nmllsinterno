@@ -181,175 +181,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // Inicializar a autenticação e ouvir mudanças de sessão
   useEffect(() => {
-    logDebug('Inicializando contexto de autenticação');
+    logDebug('Modo sem autenticação ativado: usando perfil simulado');
     
-    const initializeAuth = async () => {
-      setLoading(true);
-      
-      try {
-        // Verificar se já existe uma sessão
-        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          logError('Erro ao obter sessão atual:', sessionError);
-          setError(sessionError.message);
-          setIsAuthenticated(false);
-          setLoading(false);
-          return;
-        }
-        
-        if (currentSession) {
-          logDebug('Sessão ativa encontrada', { 
-            userId: currentSession.user.id,
-            expiresAt: currentSession.expires_at
-          });
-          
-          // Atualizar estado com a sessão
-          setSession(currentSession);
-          setUser(currentSession.user);
-          setIsAuthenticated(true);
-          
-          // Buscar perfil do usuário
-          const userProfile = await fetchProfile(currentSession.user.id);
-          if (!userProfile) {
-            logDebug('Perfil não encontrado para usuário autenticado, criando um básico');
-            const basicProfile = {
-              id: currentSession.user.id,
-              email: currentSession.user.email,
-              role: 'user'
-            };
-            
-            // Tentar criar o perfil na tabela profiles
-            try {
-              const { error: insertError } = await supabase
-                .from('profiles')
-                .insert([basicProfile]);
-                
-              if (insertError) {
-                logError('Erro ao criar perfil básico:', insertError);
-                setHasProfile(false);
-              } else {
-                logDebug('Perfil básico criado com sucesso');
-                setProfile(basicProfile);
-                setProfileLoaded(true);
-                setHasProfile(true);
-              }
-            } catch (insertErr) {
-              logError('Exceção ao criar perfil básico:', insertErr);
-              setHasProfile(false);
-            }
-          }
-        } else {
-          logDebug('Nenhuma sessão ativa encontrada');
-          setIsAuthenticated(false);
-          setHasProfile(false);
-        }
-      } catch (error) {
-        logError('Erro ao inicializar autenticação:', error);
-        if (error instanceof Error) {
-          setError(error.message);
-        } else {
-          setError('Erro desconhecido ao inicializar autenticação');
-        }
-        setIsAuthenticated(false);
-        setHasProfile(false);
-      } finally {
-        setLoading(false);
-      }
+    // Criar um perfil e usuário simulados
+    const mockUser = {
+      id: 'temporario-123',
+      email: 'usuario@exemplo.com',
+      app_metadata: {},
+      user_metadata: {},
+      aud: 'authenticated',
+      created_at: new Date().toISOString()
+    } as User;
+    
+    const mockProfile = {
+      id: 'temporario-123',
+      email: 'usuario@exemplo.com',
+      name: 'Usuário Temporário',
+      role: 'admin',
+      created_at: new Date().toISOString()
     };
     
-    // Inicializar o estado de autenticação
-    initializeAuth();
+    // Atualizar o estado para simular usuário autenticado
+    setUser(mockUser);
+    setProfile(mockProfile);
+    setIsAuthenticated(true);
+    setHasProfile(true);
+    setProfileLoaded(true);
+    setLoading(false);
     
-    // Configurar listener para alterações de auth
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      logDebug(`Evento de autenticação: ${event}`, { sessionExists: !!newSession });
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (newSession) {
-          logDebug('Usuário fez login ou token atualizado', { userId: newSession.user.id });
-          
-          // Atualizar o estado com a nova sessão
-          setSession(newSession);
-          setUser(newSession.user);
-          setIsAuthenticated(true);
-          
-          // Resetar estado de perfil carregado
-          setProfileLoaded(false);
-          
-          // Buscar perfil do usuário
-          try {
-            const userProfile = await fetchProfile(newSession.user.id);
-            
-            // Se não encontrou perfil, criar perfil básico
-            if (!userProfile) {
-              logDebug('Perfil não encontrado após evento de autenticação, criando perfil básico');
-              const basicProfile = {
-                id: newSession.user.id,
-                email: newSession.user.email,
-                role: 'user'
-              };
-              
-              // Tentar criar o perfil na tabela profiles
-              try {
-                const { error: insertError } = await supabase
-                  .from('profiles')
-                  .insert([basicProfile]);
-                  
-                if (insertError) {
-                  logError('Erro ao criar perfil básico após evento:', insertError);
-                  setHasProfile(false);
-                } else {
-                  logDebug('Perfil básico criado com sucesso após evento');
-                  setProfile(basicProfile);
-                  setProfileLoaded(true);
-                  setHasProfile(true);
-                  
-                  // Agora com perfil carregado, verificar se estamos na página de login
-                  if (pathname?.includes('/login')) {
-                    // Adiamos o redirecionamento para o useEffect acima lidar com ele
-                    // Isso evita duplicação de lógica e timing issues
-                    logDebug('Perfil carregado, redirecionamento será tratado pelo useEffect');
-                  }
-                }
-              } catch (insertErr) {
-                logError('Exceção ao criar perfil básico após evento:', insertErr);
-                setHasProfile(false);
-              }
-            } else {
-              // Se já temos o perfil, o useEffect acima vai lidar com o redirecionamento
-              logDebug('Perfil encontrado, redirecionamento será tratado pelo useEffect');
-            }
-          } catch (error) {
-            logError('Erro ao processar profile após autenticação:', error);
-          }
-        }
-      } else if (event === 'SIGNED_OUT') {
-        logDebug('Usuário fez logout');
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setProfileLoaded(false);
-        setIsAuthenticated(false);
-        setHasProfile(false);
-        
-        // Redirecionar para login após logout usando router.push
-        router.push('/login');
-      } else if (event === 'USER_UPDATED') {
-        logDebug('Dados do usuário atualizados');
-        if (newSession) {
-          setSession(newSession);
-          setUser(newSession.user);
-          await fetchProfile(newSession.user.id);
-        }
-      }
-    });
-    
-    // Cleanup do listener
-    return () => {
-      logDebug('Limpando listener de autenticação');
-      authListener.subscription.unsubscribe();
-    };
+    // Sem cleanup no modo mock
+    return () => {};
   }, [pathname, router]);
 
   // Função para fazer login

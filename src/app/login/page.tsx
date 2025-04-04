@@ -71,6 +71,15 @@ function LoginContent() {
   
   // Efeitos
   useEffect(() => {
+    logger.debug('Redirecionando automaticamente para o dashboard (modo sem autenticação)');
+    
+    // Redirecionamento automático para o dashboard
+    setTimeout(() => {
+      window.location.href = '/dashboard';
+    }, 1000);
+    
+    /* 
+    // Código original comentado temporariamente
     logger.debug('Inicializando componente de login');
     
     // Verificar parâmetros da URL para mensagens ou redirecionamentos
@@ -98,7 +107,8 @@ function LoginContent() {
     if (isAuthenticated && hasProfile && !authLoading) {
       logger.debug('Usuário já autenticado, AuthContext irá redirecionar');
     }
-  }, [searchParams, isAuthenticated, hasProfile, authLoading]);
+    */
+  }, []);
   
   // Handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

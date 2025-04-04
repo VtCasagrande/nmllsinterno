@@ -179,8 +179,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Verificar a autenticação quando o componente carregar
   useEffect(() => {
     const checkAuth = async () => {
-      logger.debug('Verificando autenticação no layout do dashboard');
+      logger.debug('Acesso direto ao dashboard ativado - sem verificação de autenticação');
       
+      // Modo temporário: pular verificação de autenticação
+      setIsLoading(false);
+      setLayoutLoaded(true);
+      
+      /* 
+      // Código original comentado temporariamente
       try {
         // Verificar se temos sessão diretamente com o Supabase
         const { data } = await supabase.auth.getSession();
@@ -204,6 +210,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         logger.error('Erro ao verificar autenticação no layout:', error);
         setIsLoading(false);
       }
+      */
     };
     
     checkAuth();

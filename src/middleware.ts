@@ -4,6 +4,13 @@ import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export async function middleware(request: NextRequest) {
+  // ===== MODO DE ACESSO TEMPORÁRIO SEM AUTENTICAÇÃO =====
+  // Configuração temporária: permitir acesso irrestrito ao dashboard
+  console.log('Middleware: permitindo acesso direto ao dashboard sem autenticação');
+  return NextResponse.next();
+  
+  // Código original comentado temporariamente - será restaurado quando a autenticação for corrigida
+  /*
   // Rotas que não precisam de autenticação
   const publicRoutes = [
     '/login',
@@ -82,6 +89,7 @@ export async function middleware(request: NextRequest) {
     
     return NextResponse.redirect(redirectUrl);
   }
+  */
 }
 
 // Configuração de quais rotas o middleware deve executar
