@@ -4,85 +4,112 @@ import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
+import { Suspense } from 'react';
 
-// Função de log melhorada para exibir no console
-const logDebug = (message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  if (data) {
-    console.log(`[${timestamp}] 📝 LOGIN DEBUG: ${message}`, data);
-  } else {
-    console.log(`[${timestamp}] 📝 LOGIN DEBUG: ${message}`);
+// Componentes e ícones
+const LoadingSpinner = () => (
+  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+  </svg>
+);
+
+const ErrorIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+  </svg>
+);
+
+const SuccessIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+  </svg>
+);
+
+// Função de log
+const logger = {
+  debug: (message: string, data?: any) => {
+    const timestamp = new Date().toISOString();
+    if (data) {
+      console.log(`[${timestamp}] 📝 LOGIN: ${message}`, data);
+    } else {
+      console.log(`[${timestamp}] 📝 LOGIN: ${message}`);
+    }
+  },
+  error: (message: string, error?: any) => {
+    const timestamp = new Date().toISOString();
+    console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
   }
 };
 
-// Função de log de erro melhorada
-const logError = (message: string, error?: any) => {
-  const timestamp = new Date().toISOString();
-  console.error(`[${timestamp}] ❌ LOGIN ERROR: ${message}`, error);
-};
+// Interface para mensagens de feedback
+interface FeedbackMessage {
+  type: 'success' | 'error' | 'info';
+  text: string;
+}
 
+// Componente principal de login
 function LoginContent() {
+  // Estado do formulário
   const [formData, setFormData] = useState({
     email: '',
-    senha: '',
-    lembrar: false
+    password: ''
   });
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [loginMessage, setLoginMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
   
+  // Estados da UI
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<FeedbackMessage | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  
+  // Hooks
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signIn, isAuthenticated, hasProfile } = useAuth();
+  const { signIn, isAuthenticated, hasProfile, loading: authLoading } = useAuth();
   
-  // Verificar ambiente e configurações
+  // Efeitos
   useEffect(() => {
-    logDebug('Inicialização do componente de login');
+    logger.debug('Inicializando componente de login');
     
-    // Verificar se já está autenticado
-    if (isAuthenticated && hasProfile) {
-      logDebug('Usuário já autenticado, redirecionando para dashboard');
-      // O redirecionamento será tratado pelo AuthContext
-    }
-    
-    // Verifica se há parâmetros de redirect
-    const redirect = searchParams.get('redirect');
-    if (redirect) {
-      logDebug(`Parâmetro de redirecionamento encontrado: ${redirect}`);
-    }
-    
-    // Verifica se há mensagem de erro ou sucesso nos parâmetros
+    // Verificar parâmetros da URL para mensagens ou redirecionamentos
     const error = searchParams.get('error');
     const success = searchParams.get('success');
+    const redirect = searchParams.get('redirect');
     
     if (error) {
-      logDebug(`Erro encontrado nos parâmetros: ${error}`);
-      setLoginMessage({
+      setMessage({
         type: 'error',
         text: decodeURIComponent(error)
       });
     } else if (success) {
-      logDebug(`Sucesso encontrado nos parâmetros: ${success}`);
-      setLoginMessage({
+      setMessage({
         type: 'success',
         text: decodeURIComponent(success)
       });
     }
-  }, [searchParams, isAuthenticated, hasProfile]);
+    
+    if (redirect) {
+      logger.debug(`Parâmetro de redirecionamento detectado: ${redirect}`);
+    }
+    
+    // Verificar se usuário já está autenticado
+    if (isAuthenticated && hasProfile && !authLoading) {
+      logger.debug('Usuário já autenticado, AuthContext irá redirecionar');
+    }
+  }, [searchParams, isAuthenticated, hasProfile, authLoading]);
   
+  // Handlers
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
+    const { name, value } = e.target;
+    
+    setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: value
     }));
     
-    // Limpa erro quando usuário começa a digitar
-    if (errors[name]) {
-      setErrors(prev => {
+    // Limpar erro ao digitar
+    if (validationErrors[name]) {
+      setValidationErrors(prev => {
         const newErrors = { ...prev };
         delete newErrors[name];
         return newErrors;
@@ -90,205 +117,241 @@ function LoginContent() {
     }
   };
   
-  const validarFormulario = (): boolean => {
-    const newErrors: {[key: string]: string} = {};
-    
-    if (!formData.email.trim()) {
-      newErrors.email = 'Email é obrigatório';
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email inválido';
-    }
-    
-    if (!formData.senha) {
-      newErrors.senha = 'Senha é obrigatória';
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const togglePasswordVisibility = () => {
+    setShowPassword(prev => !prev);
   };
   
-  const handleLogin = async (e: React.FormEvent) => {
+  const validateForm = (): boolean => {
+    const errors: {[key: string]: string} = {};
+    
+    // Validação de email
+    if (!formData.email) {
+      errors.email = 'Email é obrigatório';
+    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
+      errors.email = 'Email inválido';
+    }
+    
+    // Validação de senha
+    if (!formData.password) {
+      errors.password = 'Senha é obrigatória';
+    }
+    
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validar formulário antes de prosseguir
-    if (!validarFormulario()) {
+    if (!validateForm()) {
       return;
     }
     
     setIsLoading(true);
-    setLoginMessage(null);
+    setMessage(null);
     
     try {
-      logDebug('Iniciando login para:', formData.email);
-      const result = await signIn(formData.email, formData.senha);
+      logger.debug('Iniciando processo de login', { email: formData.email });
+      
+      const result = await signIn(formData.email, formData.password);
       
       if (result.success) {
-        logDebug('Login bem-sucedido, aguardando redirecionamento pelo AuthContext');
-        // O redirecionamento será feito pelo AuthContext
-      } else {
-        setLoginMessage({
-          type: 'error',
-          text: result.error || 'Ocorreu um erro na autenticação.'
+        logger.debug('Login bem-sucedido, aguardando redirecionamento pelo AuthContext');
+        
+        setMessage({
+          type: 'success',
+          text: 'Login realizado com sucesso! Redirecionando...'
         });
+        
+        // O redirecionamento será gerenciado pelo AuthContext
+      } else {
+        logger.error('Falha no login', result.error);
+        
+        setMessage({
+          type: 'error',
+          text: result.error || 'Falha na autenticação, verifique suas credenciais.'
+        });
+        
         setIsLoading(false);
       }
-    } catch (err) {
-      logError('Erro no processo de login:', err);
-      setLoginMessage({
+    } catch (error) {
+      logger.error('Erro durante o processo de login', error);
+      
+      setMessage({
         type: 'error',
-        text: 'Ocorreu um erro ao tentar fazer login.'
+        text: 'Ocorreu um erro inesperado. Tente novamente mais tarde.'
       });
+      
       setIsLoading(false);
     }
   };
   
-  // Função para acessar dashboard diretamente em ambiente de desenvolvimento
-  const acessarDashboardDiretamente = () => {
-    // Parâmetros para contornar verificações de autenticação
+  // Função para acessar diretamente o dashboard (apenas em desenvolvimento)
+  const accessDashboardDirectly = () => {
     window.location.href = '/dashboard?_auth_bypass=true&_direct_access=true';
   };
   
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-lg shadow-md">
-        <div className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="h-12 flex items-center justify-center">
-              <span className="text-xl font-bold text-blue-600">Nmalls Logo</span>
-            </div>
-          </div>
-          <h2 className="text-2xl font-extrabold text-gray-900">
-            Entrar no Sistema
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Acesse o sistema de gestão da Nmalls
+    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 to-gray-100">
+      {/* Seção de imagem/branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-blue-600 flex-col justify-center items-center p-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-blue-700 opacity-20"></div>
+        <div className="z-10 text-center">
+          <h1 className="text-4xl font-bold text-white mb-6">Nmalls Sistema</h1>
+          <p className="text-blue-100 text-xl max-w-md">
+            Plataforma completa de gestão para todas as suas necessidades empresariais.
           </p>
+          
+          <div className="mt-12 p-6 bg-white/10 backdrop-blur-sm rounded-lg">
+            <blockquote className="italic text-white">
+              "Nossa plataforma centraliza todas as operações essenciais ao seu negócio em um único lugar."
+            </blockquote>
+            <p className="mt-4 text-blue-200 font-semibold">Equipe Nmalls</p>
+          </div>
         </div>
         
-        {loginMessage && (
-          <div 
-            className={`p-4 rounded-md ${
-              loginMessage.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
-            }`}
-          >
-            {loginMessage.text}
+        {/* Design elements */}
+        <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-blue-800/30 to-transparent"></div>
+        <div className="absolute top-20 right-20 w-40 h-40 rounded-full bg-blue-500 filter blur-3xl opacity-30"></div>
+        <div className="absolute bottom-20 left-20 w-60 h-60 rounded-full bg-indigo-500 filter blur-3xl opacity-20"></div>
+      </div>
+      
+      {/* Formulário de login */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
+        <div className="w-full max-w-md">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-800">Bem-vindo de volta</h2>
+            <p className="text-gray-600 mt-2">Faça login para acessar o sistema</p>
           </div>
-        )}
-        
-        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-          <div className="space-y-4">
+          
+          {message && (
+            <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
+              message.type === 'error' ? 'bg-red-50 text-red-700' : 
+              message.type === 'success' ? 'bg-green-50 text-green-700' : 
+              'bg-blue-50 text-blue-700'
+            }`}>
+              {message.type === 'error' ? <ErrorIcon /> : 
+               message.type === 'success' ? <SuccessIcon /> : null}
+              <span>{message.text}</span>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                 Email
               </label>
               <input
                 id="email"
-                name="email"
                 type="email"
+                name="email"
                 autoComplete="email"
-                required
                 value={formData.email}
                 onChange={handleChange}
-                className={`mt-1 block w-full px-3 py-2 border ${
-                  errors.email ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="seu.email@exemplo.com"
+                className={`w-full px-4 py-3 rounded-lg border ${
+                  validationErrors.email ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                placeholder="seu@email.com"
+                disabled={isLoading}
               />
-              {errors.email && (
-                <p className="mt-2 text-sm text-red-600">{errors.email}</p>
+              {validationErrors.email && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.email}</p>
               )}
             </div>
             
             <div>
-              <label htmlFor="senha" className="block text-sm font-medium text-gray-700">
-                Senha
-              </label>
-              <input
-                id="senha"
-                name="senha"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={formData.senha}
-                onChange={handleChange}
-                className={`mt-1 block w-full px-3 py-2 border ${
-                  errors.senha ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500`}
-                placeholder="••••••••"
-              />
-              {errors.senha && (
-                <p className="mt-2 text-sm text-red-600">{errors.senha}</p>
+              <div className="flex justify-between mb-1">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                  Senha
+                </label>
+                <Link 
+                  href="#" 
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Esqueceu a senha?
+                </Link>
+              </div>
+              
+              <div className="relative">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  name="password"
+                  autoComplete="current-password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  className={`w-full px-4 py-3 rounded-lg border ${
+                    validationErrors.password ? 'border-red-500 ring-1 ring-red-500' : 'border-gray-300'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all`}
+                  placeholder="••••••••"
+                  disabled={isLoading}
+                />
+                
+                <button 
+                  type="button"
+                  className="absolute right-3 top-3 text-gray-500"
+                  onClick={togglePasswordVisibility}
+                >
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A10.014 10.014 0 0019.542 10C18.268 5.943 14.478 3 10 3a9.958 9.958 0 00-4.512 1.074l-1.78-1.781zm4.261 4.26l1.514 1.515a2.003 2.003 0 012.45 2.45l1.514 1.514a4 4 0 00-5.478-5.478z" clipRule="evenodd" />
+                      <path d="M12.454 16.697L9.75 13.992a4 4 0 01-3.742-3.741L2.335 6.578A9.98 9.98 0 00.458 10c1.274 4.057 5.065 7 9.542 7 .847 0 1.669-.105 2.454-.303z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+              
+              {validationErrors.password && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.password}</p>
               )}
             </div>
             
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="lembrar"
-                  name="lembrar"
-                  type="checkbox"
-                  checked={formData.lembrar}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="lembrar" className="ml-2 block text-sm text-gray-900">
-                  Lembrar-me
-                </label>
-              </div>
-              
-              <div className="text-sm">
-                <Link href="#" 
-                  className="font-medium text-blue-600 hover:text-blue-500"
-                >
-                  Esqueceu sua senha?
-                </Link>
-              </div>
-            </div>
-          </div>
-          
-          <div>
             <button
               type="submit"
               disabled={isLoading}
-              className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                isLoading ? 'opacity-70 cursor-not-allowed' : ''
-              }`}
+              className={`w-full flex items-center justify-center bg-blue-600 text-white py-3 px-4 rounded-lg font-medium ${
+                isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:bg-blue-700'
+              } transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
             >
               {isLoading ? (
                 <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Entrando...
+                  <LoadingSpinner />
+                  <span className="ml-2">Entrando...</span>
                 </>
-              ) : (
-                'Entrar'
-              )}
+              ) : 'Entrar'}
             </button>
+          </form>
+          
+          {process.env.NODE_ENV === 'development' && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <p className="text-xs text-gray-500 mb-3">Opções de desenvolvimento:</p>
+              <button
+                type="button"
+                onClick={accessDashboardDirectly}
+                className="w-full text-xs py-2 px-4 border border-gray-300 rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 transition-colors"
+              >
+                Acessar dashboard (bypass auth)
+              </button>
+            </div>
+          )}
+          
+          <div className="mt-8 text-center">
+            <p className="text-sm text-gray-600">
+              © {new Date().getFullYear()} Nmalls. Todos os direitos reservados.
+            </p>
           </div>
-        </form>
-        
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-500 mb-2">Opções de desenvolvimento:</p>
-            <button
-              type="button"
-              onClick={acessarDashboardDiretamente}
-              className="w-full text-xs py-1 px-2 border border-gray-300 rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
-            >
-              Acessar dashboard (bypass auth)
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );
 }
 
-// Envolvendo o conteúdo em um Suspense para melhor handling de carregamento
-import { Suspense } from 'react';
-
+// Exportação com Suspense
 export default function LoginPage() {
   return (
     <Suspense fallback={
