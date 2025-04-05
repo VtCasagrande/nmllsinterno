@@ -71,4 +71,4 @@ const handler = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET || 'next-auth-secret',
 });
-export { handler as GET, handler as POST }; 
+export { handler as GET, handler as POST };
