@@ -1023,7 +1023,7 @@ export default function AcompanhamentoDevolucaoPage() {
 
   const abrirDetalhes = async (id: string) => {
     try {
-      const devolucao = await devolucoesService.getDevolucaoPorId(id);
+      const devolucao = await devolucoesService.getDevolucaoById(id);
       setDetalheDevolucao(devolucao);
     } catch (error) {
       console.error('Erro ao carregar detalhes da devolução:', error);
