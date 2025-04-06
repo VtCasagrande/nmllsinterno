@@ -489,4 +489,7 @@ export const trocasService = {
       throw error;
     }
   }
-}; 
+};
+
+// Exportar uma versão compatível para os endpoints existentes
+export const trocas = trocasService; 

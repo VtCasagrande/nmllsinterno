@@ -1,4 +1,5 @@
 import { supabase } from './lib/supabase';
+export { useAuth } from './contexts/AuthContext';
 
 // Função de autenticação para integração com Supabase
 export async function auth() {
