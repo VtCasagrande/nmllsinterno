@@ -251,7 +251,9 @@ export default function EdicaoDevolucaoPage() {
     }
   };
 
-  const removerProduto = (id: string) => {
+  const removerProduto = (id: string | undefined) => {
+    if (!id) return;
+    
     setFormData(prev => ({
       ...prev,
       produtos: prev.produtos.filter(produto => produto.id !== id)
