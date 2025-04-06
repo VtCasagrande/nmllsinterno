@@ -671,11 +671,12 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
               <p className="text-sm text-gray-500">Código</p>
               <p className="font-medium">{devolucao.codigo}</p>
             </div>
-            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && devolucao.produtos?.length > 0 && (
+            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && 
+              Array.isArray(devolucao.produtos) && devolucao.produtos.length > 0 && (
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-500">Produtos</p>
                 <table className="min-w-full divide-y divide-gray-200 mt-2">
-                  <thead className="bg-gray-50">
+                  <thead className="bg-gray-100">
                     <tr>
                       <th scope="col" className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">
                         Código
@@ -689,7 +690,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {devolucao.produtos?.map(produto => (
+                    {devolucao.produtos.map(produto => (
                       <tr key={produto.id}>
                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                           {produto.codigo}
@@ -794,9 +795,9 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
           {renderizarFormularioStatus()}
           
           <div>
-            <p className="text-sm text-gray-500 mb-2">Fotos do Produto ({devolucao.fotos.length})</p>
+            <p className="text-sm text-gray-500 mb-2">Fotos do Produto ({Array.isArray(devolucao.fotos) ? devolucao.fotos.length : 0})</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {devolucao.fotos.map((foto, index) => (
+              {Array.isArray(devolucao.fotos) && devolucao.fotos.map((foto, index) => (
                 <div key={index} className="aspect-square w-full rounded-md overflow-hidden border border-gray-300">
                   <div className="relative h-full w-full bg-gray-100 flex items-center justify-center">
                     {/* Em um ambiente real, usaríamos a URL real da imagem */}
@@ -853,7 +854,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
             )}
             
             <div className="mt-4 space-y-4">
-              {devolucao.comentarios && devolucao.comentarios.map((comentario) => (
+              {Array.isArray(devolucao.comentarios) && devolucao.comentarios.map((comentario) => (
                 <div key={comentario.id} className="flex items-start gap-3">
                   <div className="bg-blue-100 text-blue-800 p-2 rounded-full">
                     <User size={16} />
@@ -886,7 +887,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">
-                      Movido para análise. {devolucao.produtos?.length > 0 && <span>Produto: {devolucao.produtos[0]?.nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
+                      Movido para análise. {Array.isArray(devolucao.produtos) && devolucao.produtos.length > 0 && <span>Produto: {devolucao.produtos[0]?.nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
                     </p>
                   </div>
                 </div>
@@ -1160,7 +1161,7 @@ export default function AcompanhamentoDevolucaoPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate">
                       {devolucao.status === 'pendente' ? '-' : 
-                        devolucao.produtos && devolucao.produtos.length > 0 
+                        Array.isArray(devolucao.produtos) && devolucao.produtos.length > 0 
                           ? devolucao.produtos.map(p => p.nome).join(', ')
                           : devolucao.produto || '-'
                       }
