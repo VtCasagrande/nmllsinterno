@@ -770,9 +770,13 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                 <div>
                   <p className="text-sm text-gray-500">Data de Finalização</p>
                   <p className="font-medium">
-                    {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} 
-                    {' '}
-                    {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                    {devolucao.data_finalizacao ? (
+                      <>
+                        {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')}
+                        {' '}
+                        {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                      </>
+                    ) : 'Não finalizado'}
                   </p>
                 </div>
               </>
@@ -902,7 +906,9 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                     <div className="flex justify-between items-center">
                       <p className="font-medium">Sistema</p>
                       <span className="text-xs text-gray-500">
-                        {new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} {new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}
+                        {devolucao.data_finalizacao ? (
+                          `${new Date(devolucao.data_finalizacao).toLocaleDateString('pt-BR')} ${new Date(devolucao.data_finalizacao).toLocaleTimeString('pt-BR')}`
+                        ) : 'Data não disponível'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">
