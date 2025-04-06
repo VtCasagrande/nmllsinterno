@@ -12,6 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 
+// Tipos personalizados para melhorar a segurança de tipos
+type DevolucaoStatus = 'pendente' | 'em_analise' | 'finalizado' | 'cancelado';
+type DevolucaoMotivo = 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
+
 // Mapeamento de status para exibição
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   pendente: { 
@@ -60,12 +64,14 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [statusAtual, setStatusAtual] = useState<'pendente' | 'em_analise' | 'finalizado' | 'cancelado'>(devolucao.status as 'pendente' | 'em_analise' | 'finalizado' | 'cancelado');
+  const [statusAtual, setStatusAtual] = useState<DevolucaoStatus>(devolucao.status as DevolucaoStatus);
   const [responsavelAnalise, setResponsavelAnalise] = useState(devolucao.responsavel_analise || '');
   const [pedidoTiny, setPedidoTiny] = useState(devolucao.pedido_tiny || '');
   const [notaFiscal, setNotaFiscal] = useState(devolucao.nota_fiscal || '');
   const [produto, setProduto] = useState(devolucao.produto || '');
-  const [motivo, setMotivo] = useState(devolucao.motivo || '');
+  const [motivo, setMotivo] = useState<DevolucaoMotivo>(
+    (devolucao.motivo || '') as DevolucaoMotivo
+  );
   const [descricao, setDescricao] = useState(devolucao.observacoes || '');
   const [produtos, setProdutos] = useState(devolucao.produtos || []);
   const [novoProduto, setNovoProduto] = useState({
@@ -136,7 +142,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setStatusAtual(e.target.value as 'pendente' | 'em_analise' | 'finalizado' | 'cancelado');
+    setStatusAtual(e.target.value as DevolucaoStatus);
     // Limpar erros quando mudar o status
     setErrors({});
   };
@@ -408,7 +414,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
               </label>
               <select
                 value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
+                onChange={(e) => setMotivo(e.target.value as DevolucaoMotivo)}
                 className={`w-full px-3 py-2 border rounded-md ${
                   errors.motivo ? 'border-red-500' : 'border-gray-300'
                 } focus:outline-none focus:ring-2 focus:ring-blue-500`}
@@ -966,7 +972,7 @@ export default function AcompanhamentoDevolucaoPage() {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('todos');
+  const [statusFilter, setStatusFilter] = useState<'todos' | DevolucaoStatus>('todos');
   const [detalheDevolucao, setDetalheDevolucao] = useState<Devolucao | null>(null);
   const [devolucoes, setDevolucoes] = useState<Devolucao[]>([]);
 
@@ -977,7 +983,7 @@ export default function AcompanhamentoDevolucaoPage() {
       
       const filtro: DevolucaoFiltro = {};
       if (statusFilter !== 'todos') {
-        filtro.status = statusFilter as any;
+        filtro.status = statusFilter;
       }
       
       const devolucoesData = await devolucoesService.getDevolucoes(filtro);
@@ -1015,6 +1021,42 @@ export default function AcompanhamentoDevolucaoPage() {
     }
   }, [profile, statusFilter]);
 
+  const abrirDetalhes = async (id: string) => {
+    try {
+      const devolucao = await devolucoesService.getDevolucaoPorId(id);
+      setDetalheDevolucao(devolucao);
+    } catch (error) {
+      console.error('Erro ao carregar detalhes da devolução:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os detalhes da devolução",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleUpdateStatus = async (id: string, novoStatus: DevolucaoStatus, dados: any) => {
+    try {
+      setLoading(true);
+      await devolucoesService.atualizarStatus(id, novoStatus, profile?.id || '');
+      await carregarDevolucoes();
+      toast({
+        title: "Sucesso",
+        description: "Status atualizado com sucesso",
+        variant: "success"
+      });
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao atualizar o status",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -1050,7 +1092,7 @@ export default function AcompanhamentoDevolucaoPage() {
           <div>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => setStatusFilter(e.target.value as 'todos' | DevolucaoStatus)}
               className="py-2 px-3 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="todos">Todos os status</option>
