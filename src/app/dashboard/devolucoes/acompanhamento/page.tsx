@@ -56,7 +56,7 @@ interface ModalDetalhesProps {
 function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalDetalhesProps) {
   if (!devolucao) return null;
   
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
@@ -176,23 +176,23 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleSubmitAnalise = async () => {
-    if (!validarFormularioAnalise() || !user) return;
+    if (!validarFormularioAnalise() || !profile) return;
     
     setLoading(true);
     
     try {
       // Atualizar status para em_analise
-      await devolucoesService.atualizarStatus(devolucao.id, 'em_analise', user.id);
+      await devolucoesService.atualizarStatus(devolucao.id, 'em_analise', profile.id);
       
       // Atualizar produtos
-      await devolucoesService.updateItens(devolucao.id, produtos, user.id);
+      await devolucoesService.updateItens(devolucao.id, produtos, profile.id);
       
       // Adicionar comentário
       if (descricao !== devolucao.observacoes) {
         await devolucoesService.addComentario(
           devolucao.id, 
           `Atualização da descrição: ${descricao}`, 
-          user.id
+          profile.id
         );
       }
       
@@ -217,7 +217,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleSubmitFinalizado = async () => {
-    if (!validarFormularioFinalizado() || !user) return;
+    if (!validarFormularioFinalizado() || !profile) return;
     
     setLoading(true);
     
@@ -229,11 +229,11 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
           pedido_tiny: pedidoTiny,
           nota_fiscal: notaFiscal,
         },
-        user.id
+        profile.id
       );
       
       // Finalizar devolução
-      await devolucoesService.atualizarStatus(devolucao.id, 'finalizado', user.id);
+      await devolucoesService.atualizarStatus(devolucao.id, 'finalizado', profile.id);
       
       toast({
         title: "Sucesso",
@@ -256,7 +256,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const adicionarComentario = async () => {
-    if (!novoComentario.trim() || !user) {
+    if (!novoComentario.trim() || !profile) {
       setErrors(prev => ({
         ...prev,
         comentario: 'O comentário não pode estar vazio'
@@ -267,7 +267,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
     setLoading(true);
     
     try {
-      await devolucoesService.addComentario(devolucao.id, novoComentario, user.id);
+      await devolucoesService.addComentario(devolucao.id, novoComentario, profile.id);
       
       toast({
         title: "Sucesso",
@@ -305,7 +305,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
 
   const executarAcaoConfirmada = async () => {
-    if (!user) return;
+    if (!profile) return;
     
     setLoading(true);
     
@@ -313,7 +313,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
       if (acaoConfirmacao === 'finalizar') {
         await handleSubmitFinalizado();
       } else if (acaoConfirmacao === 'cancelar') {
-        await devolucoesService.atualizarStatus(devolucao.id, 'cancelado', user.id);
+        await devolucoesService.atualizarStatus(devolucao.id, 'cancelado', profile.id);
         toast({
           title: "Sucesso",
           description: "Devolução cancelada com sucesso",
@@ -337,13 +337,13 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files || !e.target.files[0] || !user) return;
+    if (!e.target.files || !e.target.files[0] || !profile) return;
     
     const file = e.target.files[0];
     setUploadLoading(true);
     
     try {
-      const imageUrl = await devolucoesService.addFoto(devolucao.id, file, user.id);
+      const imageUrl = await devolucoesService.addFoto(devolucao.id, file, profile.id);
       
       if (imageUrl) {
         setFotos(prev => [...prev, imageUrl]);
@@ -370,7 +370,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleDeleteImage = async (url: string) => {
-    if (!user) return;
+    if (!profile) return;
     
     try {
       const success = await devolucoesService.deleteFoto(url);
@@ -963,7 +963,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
 
 export default function AcompanhamentoDevolucaoPage() {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('todos');
@@ -1010,12 +1010,12 @@ export default function AcompanhamentoDevolucaoPage() {
 
   // Carregar devoluções quando o componente montar ou o filtro de status mudar
   useEffect(() => {
-    if (user) {
+    if (profile) {
       carregarDevolucoes();
     }
-  }, [user, statusFilter]);
+  }, [profile, statusFilter]);
 
-  if (!user) {
+  if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Você precisa estar logado para acessar esta página.</p>
