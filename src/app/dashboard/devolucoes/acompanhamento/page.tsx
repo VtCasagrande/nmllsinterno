@@ -671,7 +671,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
               <p className="text-sm text-gray-500">Código</p>
               <p className="font-medium">{devolucao.codigo}</p>
             </div>
-            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && devolucao.produtos.length > 0 && (
+            {(devolucao.status === 'em_analise' || devolucao.status === 'finalizado') && devolucao.produtos?.length > 0 && (
               <div className="md:col-span-2">
                 <p className="text-sm text-gray-500">Produtos</p>
                 <table className="min-w-full divide-y divide-gray-200 mt-2">
@@ -689,7 +689,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {devolucao.produtos.map(produto => (
+                    {devolucao.produtos?.map(produto => (
                       <tr key={produto.id}>
                         <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-500">
                           {produto.codigo}
@@ -886,7 +886,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mt-1">
-                      Movido para análise. {devolucao.produtos.length > 0 && <span>Produto: {devolucao.produtos[0].nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
+                      Movido para análise. {devolucao.produtos?.length > 0 && <span>Produto: {devolucao.produtos[0]?.nome}.</span>} {devolucao.motivo && <span>Motivo: {MOTIVO_MAP[devolucao.motivo] || devolucao.motivo}.</span>}
                     </p>
                   </div>
                 </div>
