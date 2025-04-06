@@ -20,9 +20,9 @@ export function cn(...inputs: ClassValue[]) {
  * @returns String formatada em moeda brasileira
  */
 export function formatarMoeda(valor: number): string {
-  return new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
   }).format(valor);
 }
 
@@ -32,8 +32,8 @@ export function formatarMoeda(valor: number): string {
  * @returns String formatada em data brasileira
  */
 export function formatarData(data: string | Date): string {
-  const dataObj = typeof data === 'string' ? new Date(data) : data;
-  return dataObj.toLocaleDateString('pt-BR');
+  const dataObj = typeof data === "string" ? new Date(data) : data;
+  return dataObj.toLocaleDateString("pt-BR");
 }
 
 /**
@@ -42,8 +42,8 @@ export function formatarData(data: string | Date): string {
  * @returns String aleatória
  */
 export function gerarStringAleatoria(length: number = 8): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let result = '';
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
   for (let i = 0; i < length; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
@@ -66,7 +66,7 @@ export function gerarNumeroAleatorio(min: number, max: number): number {
  * @returns String com a primeira letra maiúscula
  */
 export function capitalizarPrimeiraLetra(texto: string): string {
-  if (!texto) return '';
+  if (!texto) return "";
   return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase();
 }
 
@@ -74,11 +74,11 @@ export function capitalizarPrimeiraLetra(texto: string): string {
  * Trunca um texto em um determinado número de caracteres
  * @param texto - Texto a ser truncado
  * @param tamanho - Tamanho máximo (padrão: 50)
- * @param sufixo - Sufixo a ser adicionado no fim (padrão: '...')
+ * @param sufixo - Sufixo a ser adicionado no fim (padrão: "...")
  * @returns String truncada
  */
-export function truncarTexto(texto: string, tamanho: number = 50, sufixo: string = '...'): string {
-  if (!texto) return '';
+export function truncarTexto(texto: string, tamanho: number = 50, sufixo: string = "..."): string {
+  if (!texto) return "";
   if (texto.length <= tamanho) return texto;
   return texto.slice(0, tamanho) + sufixo;
-} 
+}
