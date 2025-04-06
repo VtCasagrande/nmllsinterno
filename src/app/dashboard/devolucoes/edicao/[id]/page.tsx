@@ -15,7 +15,7 @@ export default function EdicaoDevolucaoPage() {
   const params = useParams();
   const id = params.id as string;
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,10 +109,10 @@ export default function EdicaoDevolucaoPage() {
       }
     };
 
-    if (user) {
+    if (profile) {
       carregarDevolucao();
     }
-  }, [id, router, toast, user]);
+  }, [id, router, toast, profile]);
   
   // Handler para mudanças nos inputs do formulário
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -174,7 +174,7 @@ export default function EdicaoDevolucaoPage() {
         ));
       }
     } else {
-      if (!user) return;
+      if (!profile) return;
       
       try {
         const fotoUrl = fotos[index];
@@ -260,12 +260,12 @@ export default function EdicaoDevolucaoPage() {
 
   // Adicionar comentário
   const adicionarComentario = async (texto: string) => {
-    if (!texto.trim() || !user || !devolucao) {
+    if (!texto.trim() || !profile || !devolucao) {
       return;
     }
 
     try {
-      const success = await devolucoesService.addComentario(devolucao.id, texto, user.id);
+      const success = await devolucoesService.addComentario(devolucao.id, texto, profile.id);
       
       if (success) {
         // Recarregar a devolução para obter o comentário atualizado
@@ -321,40 +321,39 @@ export default function EdicaoDevolucaoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validarFormulario() || !user || !devolucao) {
-      return;
-    }
+    if (!validarFormulario() || !profile) return;
     
     setIsSaving(true);
     
     try {
-      // 1. Atualizar informações básicas da devolução
-      await devolucoesService.updateDevolucao(
-        devolucao.id, 
-        {
-          produto: formData.produto,
-          motivo: formData.motivo,
-          descricao: formData.observacoes,
-          data_recebimento: `${formData.data_recebimento}T${formData.hora_recebimento || '00:00'}:00`,
-          pedido_tiny: formData.pedido_tiny,
-          nota_fiscal: formData.nota_fiscal
-        },
-        user.id
-      );
+      // Atualizar devolução
+      const dadosAtualizados = {
+        produto: formData.produto,
+        motivo: formData.motivo,
+        descricao: formData.observacoes,
+        data_recebimento: `${formData.data_recebimento}T${formData.hora_recebimento}:00`,
+        pedido_tiny: formData.pedido_tiny,
+        nota_fiscal: formData.nota_fiscal
+      };
       
-      // 2. Atualizar produtos
-      await devolucoesService.updateItens(devolucao.id, formData.produtos, user.id);
+      const sucesso = await devolucoesService.updateDevolucao(id, dadosAtualizados, profile.id);
       
-      // 3. Fazer upload de novas fotos
+      if (!sucesso) {
+        throw new Error('Erro ao atualizar devolução');
+      }
+      
+      // Atualizar produtos
+      await devolucoesService.updateItens(id, formData.produtos, profile.id);
+      
+      // Upload de novas fotos
       if (newFotos.length > 0) {
         setUploadingFotos(true);
         
         for (const foto of newFotos) {
-          await devolucoesService.addFoto(devolucao.id, foto, user.id);
+          await devolucoesService.addFoto(id, foto, profile.id);
         }
         
         setUploadingFotos(false);
-        setNewFotos([]);
       }
       
       toast({
@@ -365,7 +364,7 @@ export default function EdicaoDevolucaoPage() {
       
       router.push('/dashboard/devolucoes/acompanhamento');
     } catch (error) {
-      console.error('Erro ao atualizar devolução:', error);
+      console.error('Erro ao salvar devolução:', error);
       toast({
         title: "Erro",
         description: "Ocorreu um erro ao salvar as alterações",
@@ -384,7 +383,7 @@ export default function EdicaoDevolucaoPage() {
     }
   };
   
-  if (!user) {
+  if (!profile) {
     return (
       <div className="flex justify-center items-center h-screen">
         <p>Você precisa estar logado para acessar esta página.</p>
