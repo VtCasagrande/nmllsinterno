@@ -59,7 +59,7 @@ import { ptBR } from 'date-fns/locale';
 
 export default function TrocasPage() {
   const { trocas, getTrocas, updateTrocaStatus, loading, error, filtros, setFiltros } = useTrocas();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   
   const [searchQuery, setSearchQuery] = useState('');

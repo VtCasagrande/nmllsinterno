@@ -73,7 +73,7 @@ export default function NovaTrocaPage() {
   const router = useRouter();
   const { createTroca } = useTrocas();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Inicializar o formulário com React Hook Form + Zod
@@ -85,7 +85,7 @@ export default function NovaTrocaPage() {
       nomeProduto: "",
       quantidade: 1,
       lojaParceira: "",
-      responsavel: user?.name || "",
+      responsavel: profile?.name || "",
       telefoneResponsavel: "",
       motivo: "",
       observacoes: "",

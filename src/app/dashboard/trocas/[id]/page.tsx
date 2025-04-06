@@ -58,7 +58,7 @@ export default function DetalheTrocaPage({ params }: { params: { id: string } })
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { profile } = useAuth();
   
   const [troca, setTroca] = useState<Troca | null>(null);
   const [comentarioTexto, setComentarioTexto] = useState('');
