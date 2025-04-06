@@ -60,7 +60,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
-  const [statusAtual, setStatusAtual] = useState(devolucao.status);
+  const [statusAtual, setStatusAtual] = useState<'pendente' | 'em_analise' | 'finalizado' | 'cancelado'>(devolucao.status as 'pendente' | 'em_analise' | 'finalizado' | 'cancelado');
   const [responsavelAnalise, setResponsavelAnalise] = useState(devolucao.responsavel_analise || '');
   const [pedidoTiny, setPedidoTiny] = useState(devolucao.pedido_tiny || '');
   const [notaFiscal, setNotaFiscal] = useState(devolucao.nota_fiscal || '');
@@ -136,7 +136,7 @@ function ModalDetalhes({ devolucao, onClose, onUpdateStatus, onRefresh }: ModalD
   };
   
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setStatusAtual(e.target.value);
+    setStatusAtual(e.target.value as 'pendente' | 'em_analise' | 'finalizado' | 'cancelado');
     // Limpar erros quando mudar o status
     setErrors({});
   };
