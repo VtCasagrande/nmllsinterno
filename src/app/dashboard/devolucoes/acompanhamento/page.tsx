@@ -4,17 +4,13 @@ import { useEffect, useState } from 'react';
 import { Plus, Search, Eye, Edit, Trash, CheckCircle, Clock, AlertTriangle, User, X, Upload, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Devolucao, devolucoesService, DevolucaoFiltro } from '@/services/devolucoesService';
+import { Devolucao, devolucoesService, DevolucaoFiltro, DevolucaoStatus, DevolucaoMotivo } from '@/services/devolucoesService';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
-
-// Tipos personalizados para melhorar a segurança de tipos
-type DevolucaoStatus = 'pendente' | 'em_analise' | 'finalizado' | 'cancelado';
-type DevolucaoMotivo = 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
 
 // Mapeamento de status para exibição
 const STATUS_MAP: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
@@ -53,7 +49,7 @@ const MOTIVO_MAP: Record<string, string> = {
 interface ModalDetalhesProps {
   devolucao: Devolucao | null;
   onClose: () => void;
-  onUpdateStatus: (id: string, novoStatus: string, dados: any) => void;
+  onUpdateStatus: (id: string, novoStatus: DevolucaoStatus, dados: any) => void;
   onRefresh: () => void;
 }
 

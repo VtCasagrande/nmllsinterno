@@ -1,13 +1,17 @@
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
+// Tipos reutilizáveis
+export type DevolucaoStatus = 'pendente' | 'em_analise' | 'finalizado' | 'cancelado';
+export type DevolucaoMotivo = 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
+
 // Interface para os dados de devolução
 export interface Devolucao {
   id: string;
   codigo: string;
   produto: string;
-  motivo: 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
-  status: 'pendente' | 'em_analise' | 'finalizado' | 'cancelado';
+  motivo: DevolucaoMotivo;
+  status: DevolucaoStatus;
   data: string;
   responsavel: string;
   responsavel_id?: string;
@@ -26,7 +30,7 @@ export interface Devolucao {
 // Interface para criação/atualização de devoluções
 export interface DevolucaoInput {
   produto: string;
-  motivo: 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
+  motivo: DevolucaoMotivo;
   descricao?: string;
   responsavel_id: string;
   data_recebimento: string;
@@ -37,8 +41,8 @@ export interface DevolucaoInput {
 
 // Interface para filtro de devoluções
 export interface DevolucaoFiltro {
-  status?: 'pendente' | 'em_analise' | 'finalizado' | 'cancelado';
-  motivo?: 'produto_danificado' | 'produto_incorreto' | 'cliente_desistiu' | 'endereco_nao_encontrado' | 'outro';
+  status?: DevolucaoStatus;
+  motivo?: DevolucaoMotivo;
   data_inicio?: string;
   data_fim?: string;
   responsavel_id?: string;
@@ -322,7 +326,7 @@ export const devolucoesService = {
   /**
    * Atualiza o status de uma devolução
    */
-  async atualizarStatus(id: string, status: 'pendente' | 'em_analise' | 'finalizado' | 'cancelado', usuarioId: string): Promise<boolean> {
+  async atualizarStatus(id: string, status: DevolucaoStatus, usuarioId: string): Promise<boolean> {
     try {
       const dadosAtualizacao: any = {
         status,
