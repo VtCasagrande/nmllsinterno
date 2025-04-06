@@ -463,7 +463,7 @@ function FormularioFinalizar({
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setFormState(prev => ({ ...prev, [name]: value }));
+    setFormState((prev: typeof formState) => ({ ...prev, [name]: value }));
   };
   
   return (
@@ -604,7 +604,7 @@ export default function DetalhesEntrega() {
     // Configurar atualizações em tempo real
     const subscription = rotasService.obterAtualizacoesTempoReal(rotaId, (atualizacao) => {
       // Atualizar o estado da entrega quando houver mudanças
-      setEntrega(prevEntrega => {
+      setEntrega((prevEntrega: typeof entrega) => {
         if (!prevEntrega) return atualizacao;
         return { ...prevEntrega, ...atualizacao };
       });
@@ -762,7 +762,7 @@ export default function DetalhesEntrega() {
         });
         
         // Atualizar a lista de fotos
-        setFotos(prev => [fotoUrl, ...prev]);
+        setFotos((prev: string[]) => [fotoUrl, ...prev]);
       } else {
         throw new Error("Não foi possível salvar a foto");
       }
@@ -815,7 +815,7 @@ export default function DetalhesEntrega() {
         });
         
         // Atualizar o estado local
-        setEntrega(prev => ({ ...prev, status: 'concluida' }));
+        setEntrega((prev: typeof entrega) => ({ ...prev, status: 'concluida' }));
         
         // Verificar próxima entrega na rota
         // Esta lógica poderia ser implementada para mostrar o modal de próxima entrega
@@ -865,7 +865,7 @@ export default function DetalhesEntrega() {
         });
         
         // Atualizar o estado local
-        setEntrega(prev => ({ ...prev, status: novoStatus }));
+        setEntrega((prev: typeof entrega) => ({ ...prev, status: novoStatus }));
       } 
       // Se estiver cancelando
       else if (novoStatus === StatusEntrega.CANCELADA) {
@@ -886,7 +886,7 @@ export default function DetalhesEntrega() {
               });
               
               // Atualizar o estado local
-              setEntrega(prev => ({ ...prev, status: novoStatus }));
+              setEntrega((prev: typeof entrega) => ({ ...prev, status: novoStatus }));
             } catch (error) {
               console.error("Erro ao cancelar entrega:", error);
               toast({
